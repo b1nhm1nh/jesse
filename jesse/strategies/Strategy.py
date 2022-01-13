@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from time import sleep
-from typing import List
+from typing import List, Dict
 
 import numpy as np
 import pydash
@@ -47,8 +47,8 @@ class Strategy(ABC):
         self.take_profit = None
         self._take_profit = None
 
-        self._open_position_orders = []
-        self._close_position_orders = []
+        self._entry_orders = []
+        self._exit_orders = []
 
         self.trade: CompletedTrade = None
         self.trades_count = 0
@@ -207,10 +207,55 @@ class Strategy(ABC):
                 raise ValueError(f'Invalid order price: o[1]:{o[1]}, self.price:{self.price}')
 
             if submitted_order:
-                self._open_position_orders.append(submitted_order)
+                self._entry_orders.append(submitted_order)
+
+    def _execute_short(self) -> None:
+        self.go_short()
+
+        # validation
+        if self.sell is None:
+            raise exceptions.InvalidStrategy('You forgot to set self.sell. example [qty, price]')
+        elif type(self.sell) not in [tuple, list]:
+            raise exceptions.InvalidStrategy('self.sell must be either a list or a tuple. example: [qty, price]')
+
+        self._prepare_sell()
+
+        if self.take_profit is not None:
+            self._validate_take_profit()
+            self._prepare_take_profit()
+
+        if self.stop_loss is not None:
+            self._validate_stop_loss()
+            self._prepare_stop_loss()
+
+        # filters
+        passed = self._execute_filters()
+        if not passed:
+            return
+
+        for o in self._sell:
+            # MARKET order
+            if abs(o[1] - self.price) < 0.0001:
+                submitted_order = self.broker.sell_at_market(o[0], order_roles.OPEN_POSITION)
+            # STOP order
+            elif o[1] < self.price:
+                submitted_order = self.broker.start_profit_at(sides.SELL, o[0], o[1], order_roles.OPEN_POSITION)
+            # LIMIT order
+            elif o[1] > self.price:
+                submitted_order = self.broker.sell_at(o[0], o[1], order_roles.OPEN_POSITION)
+            else:
+                raise ValueError(f'Invalid order price: o[1]:{o[1]}, self.price:{self.price}')
+
+            if submitted_order:
+                self._entry_orders.append(submitted_order)
 
     def _prepare_buy(self, make_copies: bool = True) -> None:
         if type(self.buy) is np.ndarray:
+            return
+
+        if self.buy is None or self.buy == []:
+            # just to make sure we also support None
+            self.buy = []
             return
 
         # create a copy in the placeholders variables so we can detect future modifications
@@ -224,6 +269,11 @@ class Strategy(ABC):
 
     def _prepare_sell(self, make_copies: bool = True) -> None:
         if type(self.sell) is np.ndarray:
+            return
+
+        if self.sell is None or self.sell == []:
+            # just to make sure we also support None
+            self.sell = []
             return
 
         # create a copy in the placeholders variables so we can detect future modifications
@@ -303,46 +353,6 @@ class Strategy(ABC):
         elif type(self.take_profit) not in [tuple, list, np.ndarray]:
             raise exceptions.InvalidStrategy('self.take_profit must be either a list or a tuple. example: [qty, price]')
 
-    def _execute_short(self) -> None:
-        self.go_short()
-
-        # validation
-        if self.sell is None:
-            raise exceptions.InvalidStrategy('You forgot to set self.sell. example [qty, price]')
-        elif type(self.sell) not in [tuple, list]:
-            raise exceptions.InvalidStrategy('self.sell must be either a list or a tuple. example: [qty, price]')
-
-        self._prepare_sell()
-
-        if self.take_profit is not None:
-            self._validate_take_profit()
-            self._prepare_take_profit()
-
-        if self.stop_loss is not None:
-            self._validate_stop_loss()
-            self._prepare_stop_loss()
-
-        # filters
-        passed = self._execute_filters()
-        if not passed:
-            return
-
-        for o in self._sell:
-            # MARKET order
-            if abs(o[1] - self.price) < 0.0001:
-                submitted_order = self.broker.sell_at_market(o[0], order_roles.OPEN_POSITION)
-            # STOP order
-            elif o[1] < self.price:
-                submitted_order = self.broker.start_profit_at(sides.SELL, o[0], o[1], order_roles.OPEN_POSITION)
-            # LIMIT order
-            elif o[1] > self.price:
-                submitted_order = self.broker.sell_at(o[0], o[1], order_roles.OPEN_POSITION)
-            else:
-                raise ValueError(f'Invalid order price: o[1]:{o[1]}, self.price:{self.price}')
-
-            for o in self._open_position_orders:
-                self._open_position_orders.append(submitted_order)
-
     def _execute_filters(self) -> bool:
         for f in self.filters():
             try:
@@ -408,7 +418,7 @@ class Strategy(ABC):
         self.take_profit = None
         self._take_profit = None
 
-        self._open_position_orders = []
+        self._entry_orders = []
         self._close_positi = []
 
         self.increased_count = 0
@@ -465,10 +475,10 @@ class Strategy(ABC):
                     self._buy = self.buy.copy()
 
                     # cancel orders
-                    for o in self._open_position_orders:
+                    for o in self._entry_orders:
                         if o.is_active or o.is_queued:
                             self.broker.cancel_order(o.id)
-                    self._open_position_orders = [o for o in self._open_position_orders if o.is_executed]
+                    self._entry_orders = [o for o in self._entry_orders if o.is_executed]
                     for o in self._buy:
                         # MARKET order
                         if abs(o[1] - self.price) < 0.0001:
@@ -484,7 +494,7 @@ class Strategy(ABC):
                             raise ValueError(f'Invalid order price: o[1]:{o[1]}, self.price:{self.price}')
 
                         if submitted_order:
-                            self._open_position_orders.append(submitted_order)
+                            self._entry_orders.append(submitted_order)
 
             elif self.is_short:
                 # prepare format
@@ -495,10 +505,10 @@ class Strategy(ABC):
                     self._sell = self.sell.copy()
 
                     # cancel orders
-                    for o in self._open_position_orders:
+                    for o in self._entry_orders:
                         if o.is_active or o.is_queued:
                             self.broker.cancel_order(o.id)
-                    self._open_position_orders = [o for o in self._open_position_orders if o.is_executed]
+                    self._entry_orders = [o for o in self._entry_orders if o.is_executed]
                     for o in self._sell:
                         # MARKET order
                         if abs(o[1] - self.price) < 0.0001:
@@ -514,7 +524,7 @@ class Strategy(ABC):
                             raise ValueError(f'Invalid order price: o[1]:{o[1]}, self.price:{self.price}')
 
                         if submitted_order:
-                            self._open_position_orders.append(submitted_order)
+                            self._entry_orders.append(submitted_order)
 
             if self.position.is_open and self.take_profit is not None:
                 self._validate_take_profit()
@@ -525,20 +535,20 @@ class Strategy(ABC):
                     self._take_profit = self.take_profit.copy()
 
                     # cancel orders
-                    for o in self._close_position_orders:
+                    for o in self._exit_orders:
                         if o.submitted_via == 'take-profit' and o.is_active or o.is_queued:
                             self.broker.cancel_order(o.id)
                     # clean orders array but leave executed ones
-                    self._close_position_orders = [o for o in self._close_position_orders if o.is_executed]
+                    self._exit_orders = [o for o in self._exit_orders if o.is_executed]
                     for o in self._take_profit:
                         submitted_order: Order = self.broker.reduce_position_at(
                             o[0],
                             o[1],
                             order_roles.CLOSE_POSITION
                         )
-                        submitted_order.submitted_via = 'take-profit'
                         if submitted_order:
-                            self._close_position_orders.append(submitted_order)
+                            submitted_order.submitted_via = 'take-profit'
+                            self._exit_orders.append(submitted_order)
 
             if self.position.is_open and self.stop_loss is not None:
                 self._validate_stop_loss()
@@ -550,20 +560,20 @@ class Strategy(ABC):
                     self._stop_loss = self.stop_loss.copy()
 
                     # cancel orders
-                    for o in self._close_position_orders:
+                    for o in self._exit_orders:
                         if o.submitted_via == 'stop-loss' and o.is_active or o.is_queued:
                             self.broker.cancel_order(o.id)
                     # clean orders array but leave executed ones
-                    self._close_position_orders = [o for o in self._close_position_orders if o.is_executed]
+                    self._exit_orders = [o for o in self._exit_orders if o.is_executed]
                     for o in self._stop_loss:
                         submitted_order: Order = self.broker.reduce_position_at(
                             o[0],
                             o[1],
                             order_roles.CLOSE_POSITION
                         )
-                        submitted_order.submitted_via = 'stop-loss'
                         if submitted_order:
-                            self._close_position_orders.append(submitted_order)
+                            submitted_order.submitted_via = 'stop-loss'
+                            self._exit_orders.append(submitted_order)
         except TypeError:
             # raise exceptions.InvalidStrategy(
             #     'Something odd is going on within your strategy causing a TypeError exception. '
@@ -607,7 +617,7 @@ class Strategy(ABC):
             logger.info('Maximum allowed trades in test-drive mode is reached')
             return
 
-        if len(self._open_position_orders) and self.is_close and self.should_cancel():
+        if len(self._entry_orders) and self.is_close and self.should_cancel():
             self._execute_cancel()
 
             # make sure order cancellation response is received via WS
@@ -634,7 +644,7 @@ class Strategy(ABC):
         if jh.is_backtesting() or jh.is_unit_testing():
             store.orders.execute_pending_market_orders()
 
-        if self.position.is_close and self._open_position_orders == []:
+        if self.position.is_close and self._entry_orders == []:
             should_short = self.should_short()
             should_long = self.should_long()
             # validation
@@ -654,53 +664,46 @@ class Strategy(ABC):
 
         if self.take_profit is not None:
             for o in self._take_profit:
-                # validation: make sure take-profit will exit with profit
-                if self.is_long:
-                    if o[1] <= self.position.entry_price:
-                        raise exceptions.InvalidStrategy(
-                            f'take-profit({o[1]}) must be above entry-price({self.position.entry_price}) in a long position'
-                        )
-                elif self.is_short:
-                    if o[1] >= self.position.entry_price:
-                        raise exceptions.InvalidStrategy(
-                            f'take-profit({o[1]}) must be below entry-price({self.position.entry_price}) in a short position'
-                        )
+                # validation: make sure take-profit will exit with profit, if not, close the position
+                if self.is_long and o[1] <= self.position.entry_price:
+                    submitted_order: Order = self.broker.sell_at_market(o[0], order_roles.CLOSE_POSITION)
+                    logger.info(
+                        'The take-profit is below entry-price for long position, so it will be replaced with a market order instead')
+                elif self.is_short and o[1] >= self.position.entry_price:
+                    submitted_order: Order = self.broker.buy_at_market(o[0], order_roles.CLOSE_POSITION)
+                    logger.info(
+                        'The take-profit is above entry-price for a short position, so it will be replaced with a market order instead')
+                else:
+                    submitted_order: Order = self.broker.reduce_position_at(
+                        o[0],
+                        o[1],
+                        order_roles.CLOSE_POSITION
+                    )
 
-                # submit take-profit
-                submitted_order: Order = self.broker.reduce_position_at(
-                    o[0],
-                    o[1],
-                    order_roles.CLOSE_POSITION
-                )
                 if submitted_order:
                     submitted_order.submitted_via = 'take-profit'
-                    self._close_position_orders.append(submitted_order)
+                    self._exit_orders.append(submitted_order)
 
         if self.stop_loss is not None:
             for o in self._stop_loss:
-                # validation
-                if self.is_long:
-                    if o[1] >= self.position.entry_price:
-                        raise exceptions.InvalidStrategy(
-                            f'stop-loss({o[1]}) must be below entry-price({self.position.entry_price}) in a long position'
-                        )
-                elif self.is_short:
-                    if o[1] <= self.position.entry_price:
-                        raise exceptions.InvalidStrategy(
-                            f'stop-loss({o[1]}) must be above entry-price({self.position.entry_price}) in a short position'
-                        )
+                # validation: make sure stop-loss will exit with profit, if not, close the position
+                if self.is_long and o[1] >= self.position.entry_price:
+                    submitted_order: Order = self.broker.sell_at_market(o[0], order_roles.CLOSE_POSITION)
+                    logger.info('The stop-loss is above entry-price for long position, so it will be replaced with a market order instead')
+                elif self.is_short and o[1] <= self.position.entry_price:
+                    submitted_order: Order = self.broker.buy_at_market(o[0], order_roles.CLOSE_POSITION)
+                    logger.info('The stop-loss is below entry-price for a short position, so it will be replaced with a market order instead')
+                else:
+                    submitted_order: Order = self.broker.reduce_position_at(
+                        o[0],
+                        o[1],
+                        order_roles.CLOSE_POSITION
+                    )
 
-                # submit stop-loss
-                submitted_order: Order = self.broker.reduce_position_at(
-                    o[0],
-                    o[1],
-                    order_roles.CLOSE_POSITION
-                )
                 if submitted_order:
                     submitted_order.submitted_via = 'stop-loss'
-                    self._close_position_orders.append(submitted_order)
+                    self._exit_orders.append(submitted_order)
 
-        self._open_position_orders = []
         self.on_open_position(order)
         self._detect_and_handle_entry_and_exit_modifications()
 
@@ -729,8 +732,6 @@ class Strategy(ABC):
     def _on_increased_position(self, order: Order) -> None:
         self.increased_count += 1
 
-        self._open_position_orders = []
-
         self._broadcast('route-increased-position')
 
         self.on_increased_position(order)
@@ -750,8 +751,6 @@ class Strategy(ABC):
         prepares for on_reduced_position() is implemented by user
         """
         self.reduced_count += 1
-
-        self._open_position_orders = []
 
         self._broadcast('route-reduced-position')
 
@@ -855,7 +854,7 @@ class Strategy(ABC):
             )
             return
 
-        if len(self._open_position_orders):
+        if len(self._entry_orders):
             self._execute_cancel()
             logger.info('Canceled open-position orders because we reached the end of the backtest session.')
 
@@ -1160,7 +1159,7 @@ class Strategy(ABC):
 
     @property
     def has_active_entry_orders(self) -> bool:
-        return len(self._open_position_orders) > 0
+        return len(self._entry_orders) > 0
 
     @property
     def leverage(self) -> int:
@@ -1204,3 +1203,17 @@ class Strategy(ABC):
                 notifier.notify_urgently(msg)
         else:
             raise ValueError(f'log_type should be either "info" or "error". You passed {log_type}')
+    
+    @property
+    def positions(self) -> Dict[str, Position]:
+        positions_dict = {}
+        for r in self.routes:
+            positions_dict[r.symbol] = r.strategy.position
+        return positions_dict
+
+    @property
+    def portfolio_value(self) -> float:
+        total_position_values = 0
+        for key, p in self.positions.items():
+            total_position_values += p.pnl
+        return (total_position_values + self.capital) * self.leverage
