@@ -15,8 +15,8 @@
 ---
 Jesse is an advanced crypto trading framework which aims to simplify researching and defining trading strategies.
 ---
-CTF Branch: Custom Time Frame
-- run in backtest mode now
+Jesse Extended Timeframe
+- run in all mode now
 - work with timeframe that 1440 % tf == 0 
 
 ## Why Jesse?
