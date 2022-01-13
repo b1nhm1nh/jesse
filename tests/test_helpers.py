@@ -1,3 +1,5 @@
+import os
+
 import arrow
 import numpy as np
 import pytest
@@ -8,9 +10,8 @@ import jesse.helpers as jh
 def test_app_currency():
     from jesse.routes import router
     from jesse.enums import exchanges, timeframes
-    router.set_routes([
-        (exchanges.BITFINEX, 'ETH-USD', timeframes.HOUR_3, 'Test19'),
-    ])
+    router.initiate(
+        [{'exchange': exchanges.BITFINEX, 'symbol': 'ETH-USD', 'timeframe': timeframes.HOUR_3, 'strategy': 'Test19'}])
     assert jh.app_currency() == 'USD'
 
 
@@ -28,8 +29,6 @@ def test_base_asset():
     assert jh.base_asset('BTC-USD') == 'BTC'
     assert jh.base_asset('DEFI-USDT') == 'DEFI'
     assert jh.base_asset('DEFI-USD') == 'DEFI'
-
-
 
 
 def test_binary_search():
@@ -82,6 +81,12 @@ def test_dashless_symbol():
 
     # make sure that it works even if it's already dashless
     assert jh.dashless_symbol('BTCUSDT') == 'BTCUSDT'
+
+
+def test_dashy_symbol():
+    assert jh.dashy_symbol('BTCUSD') == 'BTC-USD'
+    assert jh.dashy_symbol('BTCUSDT') == 'BTC-USDT'
+    assert jh.dashy_symbol('BTC-USDT') == 'BTC-USDT'
 
 
 def test_date_diff_in_days():
@@ -466,6 +471,10 @@ def test_side_to_type():
     assert jh.side_to_type("buy") == "long"
     assert jh.side_to_type("sell") == "short"
 
+    # make sure title case works as well
+    assert jh.side_to_type("Buy") == "long"
+    assert jh.side_to_type("Sell") == "short"
+
 
 def test_string_after_character():
     assert jh.string_after_character('btcusdt@bookTicker', '@') == 'bookTicker'
@@ -540,3 +549,33 @@ def test_unique_list():
 def test_closing_side():
     assert jh.closing_side('Long') == 'sell'
     assert jh.closing_side('Short') == 'buy'
+
+
+def test_merge_dicts():
+    client = {
+        'extra': {
+            'name': 'Saleh',
+            'new_key': 12
+        },
+        'age': 28
+    }
+
+    server = {
+        'extra': {
+            'name': 'Ocean',
+            'water': 100
+        },
+    }
+
+    expected_result = {'age': 28, 'extra': {'name': 'Ocean', 'water': 100, 'new_key': 12}}
+
+    assert expected_result == jh.merge_dicts(client, server)
+
+
+def test_get_pid():
+    assert os.getpid() == jh.get_pid()
+
+
+def test_convert_to_env_name():
+    assert jh.convert_to_env_name('Testnet Binance Futures') == 'TESTNET_BINANCE_FUTURES'
+    assert jh.convert_to_env_name('Testnet Binance') == 'TESTNET_BINANCE'

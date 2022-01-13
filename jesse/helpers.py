@@ -101,6 +101,21 @@ def dashless_symbol(symbol: str) -> str:
     return symbol.replace("-", "")
 
 
+def dashy_symbol(symbol: str) -> str:
+    # if already has '-' in symbol, return symbol
+    if '-' in symbol:
+        return symbol
+
+    from jesse.config import config
+
+    for s in config['app']['considering_symbols']:
+        compare_symbol = dashless_symbol(s)
+        if compare_symbol == symbol:
+            return s
+
+    return f"{symbol[0:3]}-{symbol[3:]}"
+
+
 def date_diff_in_days(date1: arrow.arrow.Arrow, date2: arrow.arrow.Arrow) -> int:
     if type(date1) is not arrow.arrow.Arrow or type(
             date2) is not arrow.arrow.Arrow:
@@ -191,6 +206,11 @@ def estimate_PNL_percentage(qty: float, entry_price: float, exit_price: float, t
 
 def file_exists(path: str) -> bool:
     return os.path.isfile(path)
+
+
+def make_directory(path: str) -> None:
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 
 def floor_with_precision(num: float, precision: int = 0) -> float:
@@ -317,7 +337,7 @@ def is_debugging() -> bool:
 
 def is_importing_candles() -> bool:
     from jesse.config import config
-    return config['app']['trading_mode'] == 'import-candles'
+    return config['app']['trading_mode'] == 'candles'
 
 
 def is_live() -> bool:
@@ -405,15 +425,15 @@ def normalize(x: float, x_min: float, x_max: float) -> float:
     return (x - x_min) / (x_max - x_min)
 
 
-def now() -> int:
+def now(force_fresh=False) -> int:
     """
     Always returns the current time in milliseconds but rounds time in matter of seconds
     """
-    return now_to_timestamp()
+    return now_to_timestamp(force_fresh)
 
 
-def now_to_timestamp() -> int:
-    if not (is_live() or is_collecting_data() or is_importing_candles()):
+def now_to_timestamp(force_fresh=False) -> int:
+    if not force_fresh and (not (is_live() or is_collecting_data() or is_importing_candles())):
         from jesse.store import store
         return store.app.time
 
@@ -632,6 +652,9 @@ def should_execute_silently() -> bool:
 def side_to_type(s: str) -> str:
     from jesse.enums import trade_types, sides
 
+    # make sure string is lowercase
+    s = s.lower()
+
     if s == sides.BUY:
         return trade_types.LONG
     if s == sides.SELL:
@@ -668,8 +691,8 @@ def style(msg_text: str, msg_style: str) -> str:
 
 def terminate_app() -> None:
     # close the database
-    from jesse.services.db import close_connection
-    close_connection()
+    from jesse.services.db import database
+    database.close_connection()
     # disconnect python from the OS
     os._exit(1)
 
@@ -771,6 +794,58 @@ def closing_side(position_type: str) -> str:
         raise ValueError(f'Value entered for position_type ({position_type}) is not valid')
 
 
+def merge_dicts(d1: dict, d2: dict) -> dict:
+    """
+    Merges nested dictionaries
+
+    :param d1: dict
+    :param d2: dict
+    :return: dict
+    """
+    def inner(dict1, dict2):
+        for k in set(dict1.keys()).union(dict2.keys()):
+            if k in dict1 and k in dict2:
+                if isinstance(dict1[k], dict) and isinstance(dict2[k], dict):
+                    yield k, dict(merge_dicts(dict1[k], dict2[k]))
+                else:
+                    yield k, dict2[k]
+            elif k in dict1:
+                yield k, dict1[k]
+            else:
+                yield k, dict2[k]
+
+    return dict(inner(d1, d2))
+
+
+def computer_name():
+    import platform
+    return platform.node()
+
+
+def validate_response(response):
+    if response.status_code != 200:
+        err_msg = f"[{response.status_code}]: {response.json()['message']}\nPlease contact us at support@jesse.trade if this is unexpected."
+
+        if response.status_code not in [401, 403]:
+            raise ConnectionError(err_msg)
+        error(err_msg, force_print=True)
+        terminate_app()
+
+
+def get_session_id():
+    from jesse.store import store
+    return store.app.session_id
+
+
+def get_pid():
+    return os.getpid()
+
+
+def is_jesse_project():
+    ls = os.listdir('.')
+    return 'strategies' in ls and 'storage' in ls
+
+
 def dd(item, pretty=True):
     """
     Dump and Die but pretty: used for debugging when developing Jesse
@@ -807,11 +882,66 @@ def float_or_none(item):
         return float(item)
 
 
-def str_or_none(item):
+def str_or_none(item, encoding='utf-8'):
     """
     Return the str of the value if it's not None
     """
     if item is None:
         return None
     else:
-        return str(item)
+        # return item if it's str, if not, decode it using encoding
+        if isinstance(item, str):
+            return item
+        return str(item, encoding)
+
+
+def get_settlement_currency_from_exchange(exchange: str):
+    if exchange in {'FTX Futures', 'Bitfinex', 'Coinbase'}:
+        return 'USD'
+    else:
+        return 'USDT'
+
+
+def cpu_cores_count():
+    from multiprocessing import cpu_count
+    return cpu_count()
+
+
+# a function that converts name to env_name. Example: 'Testnet Binance Futures' into 'TESTNET_BINANCE_FUTURES'
+def convert_to_env_name(name: str) -> str:
+    return name.replace(' ', '_').upper()
+
+
+def is_notebook():
+    try:
+        shell = get_ipython().__class__.__name__
+        # Jupyter notebook or qtconsole
+        if shell == 'ZMQInteractiveShell':
+            return True
+        elif shell == 'TerminalInteractiveShell':
+            # Terminal running IPython
+            return False
+        else:
+            # Other type (?)
+            return False
+    except NameError:
+        # Probably standard Python interpreter
+        return False
+
+
+def get_os() -> str:
+    import platform
+    if platform.system() == 'Darwin':
+        return 'mac'
+    elif platform.system() == 'Linux':
+        return 'linux'
+    elif platform.system() == 'Windows':
+        return 'windows'
+    else:
+        raise NotImplementedError(f'Unsupported OS: "{platform.system()}"')
+
+
+# a function that returns boolean whether or not the code is being executed inside a docker container
+def is_docker() -> bool:
+    import os
+    return os.path.exists('/.dockerenv')
