@@ -12,7 +12,7 @@ from jesse.store import store
 from jesse.services import logger
 # from jesse.services.candle import print_candle
 
-from jesse.ctf import on_generate_warmup_candles_for_bigger_timeframe
+from jesse.ctf import on_generate_warmup_candles_for_bigger_timeframe, on_generate_warmup_candles_for_bigger_timeframe_backtest
 
 def load_required_candles(exchange: str, symbol: str, start_date_str: str, finish_date_str: str) -> np.ndarray:
     """
@@ -125,7 +125,7 @@ def inject_required_candles_to_store(candles: np.ndarray, exchange: str, symbol:
     # print (f"Generating {len(candles)} candles for {exchange} {symbol}...")
     logger.info("inject_required_candles_to_store")
     for i in range(len(candles)):
-        on_generate_warmup_candles_for_bigger_timeframe(candles, exchange, symbol, i)
+        on_generate_warmup_candles_for_bigger_timeframe_backtest(candles, exchange, symbol, i)
         continue
 
         for timeframe in config['app']['considering_timeframes']:

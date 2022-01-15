@@ -31,7 +31,7 @@ from timeloop import Timeloop
 from datetime import timedelta
 from jesse.services.progressbar import Progressbar
 
-from jesse.ctf import on_generate_candles_for_bigger_timeframe
+
 def run(
         debug_mode,
         user_config: dict,
@@ -230,6 +230,99 @@ def simulator(
     store.app.time = first_candles_set[0][0]
 
     # initiate strategies
+    min_timeframe = _initialized_strategies(hyperparameters)
+    # print(f"Min_tf {min_timeframe}")
+    # add initial balance
+    save_daily_portfolio_balance()
+
+    progressbar = Progressbar(length, step=60)
+    i = min_timeframe_remainder = skip = min_timeframe
+    # i is the i'th candle, which means that the first candle is i=1 etc..
+    while i <= length:
+        # update time
+        store.app.time = first_candles_set[i - 1][0] + 60_000
+
+        # add candles
+        for j in candles:
+            if i-skip != 0:
+                _get_fixed_jumped_candle(candles[j]['candles'][i - skip - 1], candles[j]['candles'][i - skip])  
+            short_candles = candles[j]['candles'][i - skip: i]
+
+            exchange = candles[j]['exchange']
+            symbol = candles[j]['symbol']
+
+            store.candles.add_candle(short_candles, exchange, symbol, '1m', with_execution=False,
+                                     with_generation=False)
+
+            # print short candle
+            if jh.is_debuggable('shorter_period_candles'):
+            	print_candle(short_candles[-1], True, symbol)
+
+            current_temp_candle = generate_candle_from_one_minutes('',
+                                                                       short_candles,
+                                                                       accept_forming_candles=True)
+
+            _simulate_price_change_effect(current_temp_candle, exchange, symbol)
+
+            # generate and add candles for bigger timeframes
+            for timeframe in config['app']['considering_timeframes']:
+                # for 1m, no work is needed
+                if timeframe == '1m':
+                    continue
+
+                count = jh.timeframe_to_one_minutes(timeframe)
+                # if i % count == 0:
+                # CTF Hack
+                if (i % 1440) % count == 0:
+                    if i % 1440 == 0 and 1440 % count != 0:
+                        count = 1440 - (1440 // count) * count
+                    _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])  
+                    # print(f"{i} - {count}")
+                    generated_candle = generate_candle_from_one_minutes(
+                            timeframe,
+                            candles[j]['candles'][i - count:i],
+                            accept_forming_candles=True)
+                    # _get_fixed_jumped_candle(store.candles.get_current_candle(exchange, symbol, timeframe), generated_candle)
+                        
+                    store.candles.add_candle(generated_candle, exchange, symbol, timeframe, with_execution=False,
+                    		with_generation=False)
+                    # print(f"Generating normal candle k = {k} - i = {i} ts ={generated_candle[0]}")
+                # End CTF Hack
+
+
+        # update progressbar
+        if not run_silently and i % 60 == 0:
+            progressbar.update()
+            sync_publish('progressbar', {
+                'current': progressbar.current,
+                'estimated_remaining_seconds': progressbar.estimated_remaining_seconds
+            })
+
+        # now that all new generated candles are ready, execute
+        _execute_candles(i)
+
+        if i % 1440 == 0:
+            save_daily_portfolio_balance()
+            
+        # CTF Hack
+        # if current candle i + remainder  > 1440% -> next candle is 1440% 
+        if (i + min_timeframe_remainder) // 1440 != (i) // 1440:
+            min_timeframe_remainder = 1440 - (i % 1440)
+
+        skip = _skip_n_candles(candles, min_timeframe_remainder, i)
+        if skip < min_timeframe_remainder:
+            min_timeframe_remainder -= skip
+        elif skip == min_timeframe_remainder:
+            min_timeframe_remainder = min_timeframe
+        # print(f"[after - i] {i} - [skip] {skip}- {min_timeframe_remainder}")
+
+        i += skip
+
+    _finish_simulation(begin_time_track, run_silently)
+
+
+
+def _initialized_strategies(hyperparameters: dict = None):
     for r in router.routes:
         StrategyClass = jh.get_strategy_class(r.strategy_name)
 
@@ -263,57 +356,26 @@ def simulator(
 
         selectors.get_position(r.exchange, r.symbol).strategy = r.strategy
 
-    # add initial balance
-    save_daily_portfolio_balance()
+    # search for minimum timeframe for skips
+    consider_timeframes = [jh.timeframe_to_one_minutes(timeframe) for timeframe in config['app']['considering_timeframes'] if timeframe != '1m']
 
-    progressbar = Progressbar(length, step=60)
-    for i in range(length):
-        # update time
-        store.app.time = first_candles_set[i][0] + 60_000
-
-        # add candles
-        for j in candles:
-            short_candle = candles[j]['candles'][i]
-            if i != 0:
-                previous_short_candle = candles[j]['candles'][i - 1]
-                short_candle = _get_fixed_jumped_candle(previous_short_candle, short_candle)
-            exchange = candles[j]['exchange']
-            symbol = candles[j]['symbol']
-            # logger.info(f"New candle {i}")
-            # print_candle(short_candle, False, symbol) 
-            store.candles.add_candle(short_candle, exchange, symbol, '1m', with_execution=False,
-                                     with_generation=False)
-
-            # print short candle
-            if jh.is_debuggable('shorter_period_candles'):
-                print_candle(short_candle, True, symbol)
-
-            _simulate_price_change_effect(short_candle, exchange, symbol)
-
-            # generate and add candles for bigger timeframes
-            on_generate_candles_for_bigger_timeframe(candles, exchange, symbol, i, j)
-            continue
-                # End CTF Hack
+    # for cases where only 1m is used in this simulation
+    if not consider_timeframes:
+        return 1
+    # take the greatest common divisor for that purpose
+    return np.gcd.reduce(consider_timeframes)
 
 
-        # update progressbar
-        if not run_silently and i % 60 == 0:
-            progressbar.update()
-            sync_publish('progressbar', {
-                'current': progressbar.current,
-                'estimated_remaining_seconds': progressbar.estimated_remaining_seconds
-            })
-
-        # now that all new generated candles are ready, execute
-        for r in router.routes:
-            count = jh.timeframe_to_one_minutes(r.timeframe)
+def _execute_candles(i: int):
+    for r in router.routes:
+        count = jh.timeframe_to_one_minutes(r.timeframe)
             # 1m timeframe
             if r.timeframe == timeframes.MINUTE_1:
                 r.strategy._execute()
             # CTF Hack
             else:
                 # only works with TF < 1440
-                if count < 1440 and 1440 % count != 0:                                  
+                if count < 1440:                                   
                     k = (i + 1) % 1440 
                     if (k == 0 and i > 1) or (k % count == 0):
                         if jh.is_debuggable('trading_candles'):
@@ -327,14 +389,12 @@ def simulator(
                                     r.symbol)
                     r.strategy._execute()
             # End CTF Hack
-              
 
-        # now check to see if there's any MARKET orders waiting to be executed
-        store.orders.execute_pending_market_orders()
+    # now check to see if there's any MARKET orders waiting to be executed
+    store.orders.execute_pending_market_orders()
 
-        if i != 0 and i % 1440 == 0:
-            save_daily_portfolio_balance()
 
+def _finish_simulation(begin_time_track: float, run_silently):
     if not run_silently:
         # print executed time for the backtest session
         finish_time_track = time.time()
@@ -367,6 +427,48 @@ def _get_fixed_jumped_candle(previous_candle: np.ndarray, candle: np.ndarray) ->
         candle[3] = max(previous_candle[2], candle[3])
 
     return candle
+    
+def _skip_n_candles(candles, max_skip: int, i: int) -> int:
+    """
+    calculate how many 1 minute candles can be skipped by checking if the next candles
+    will execute limit and stop orders
+
+    Use binary search to find an interval that only 1 or 0 orders execution is needed
+    :param candles: np.ndarray - array of the whole 1 minute candles
+    :max_skip: int - the interval that not matter if there is an order to be updated or not.
+    :i: int - the current candle that should be executed
+
+    :return: int - the size of the candles in minutes needs to skip
+    """
+    while True:
+        orders_counter = 0
+        for r in router.routes:
+            if store.orders.count_active_orders(r.exchange, r.symbol) < 2:
+                continue
+
+            orders = store.orders.get_orders(r.exchange, r.symbol)
+            future_candles = candles[f'{r.exchange}-{r.symbol}']['candles']
+            if i >= len(future_candles):
+                # if there is a problem with i or with the candles it will raise somewhere else
+                # for now it still satisfy the condition that no more than 2 orders will be execute in the next candle
+                break
+
+            current_temp_candle = generate_candle_from_one_minutes('',
+                                                                   future_candles[i:i+max_skip],
+                                                                   accept_forming_candles=True)
+
+            for order in orders:
+                if order.is_active and candle_includes_price(current_temp_candle, order.price):
+                    orders_counter += 1
+
+        if orders_counter < 2 or max_skip == 1:
+            # no more than 2 orders that can interfere each other in this candle.
+            # or the candle is 1 minute candle, so I cant reduce it to smaller interval :/
+            break
+
+        max_skip //= 2
+
+    return max_skip
 
 
 def _simulate_price_change_effect(real_candle: np.ndarray, exchange: str, symbol: str) -> None:

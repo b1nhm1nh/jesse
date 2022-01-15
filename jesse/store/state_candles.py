@@ -19,9 +19,9 @@ class CandlesState:
         self.storage = {}
         self.are_all_initiated = False
         self.initiated_pairs = {}
-        
         # CTF: Ignore CTF candles generated from Jesse Live module
         self.ctf_ignore = False
+        self.is_live = jh.is_live()
 
     def generate_new_candles_loop(self) -> None:
         """
@@ -68,31 +68,33 @@ class CandlesState:
         return new_candle
 
     def mark_all_as_initiated(self) -> None:
-        # CTF Hack
-        self.are_all_initiated = False
-        # Debug:
-        # logger.info("mark_all_as_initiated: Re-Generate candles")
-        for c in config['app']['considering_candles']:        
-            exchange, symbol = c[0], c[1]
-            for timeframe in config['app']['all_timeframes']:
-                # if timeframe != '1m':
-                key = jh.key(exchange, symbol, timeframe)
-                logger.info(f"Info: {timeframe} candle length {len(self.storage[key])}")
+        
+        if self.is_live:
+            # CTF Hack
+            self.are_all_initiated = False
+            # Debug:
+            # logger.info("mark_all_as_initiated: Re-Generate candles")
+            for c in config['app']['considering_candles']:        
+                exchange, symbol = c[0], c[1]
+                for timeframe in config['app']['all_timeframes']:
+                    # if timeframe != '1m':
+                    key = jh.key(exchange, symbol, timeframe)
+                    logger.info(f"Info: {timeframe} candle length {len(self.storage[key])}")
 
-        # Debug: print all candles
-        # for c in config['app']['considering_candles']:        
-        #     exchange, symbol = c[0], c[1]
-        #     self.initiated_pairs[f'{exchange}-{symbol}'] = True
+            # Debug: print all candles
+            # for c in config['app']['considering_candles']:        
+            #     exchange, symbol = c[0], c[1]
+            #     self.initiated_pairs[f'{exchange}-{symbol}'] = True
 
-        #     for timeframe in config['app']['all_timeframes']:
-        #         if timeframe != '1m':
-        #             key = jh.key(exchange, symbol, timeframe)
-        #             logger.info(f"candle length: {timeframe} length {len(self.storage[key])}")
-        #             candles = self.get_storage(exchange, symbol, timeframe)
-        #             logger.info(f"candle {symbol} after re-generated length: {timeframe} length {len(candles)}")
+            #     for timeframe in config['app']['all_timeframes']:
+            #         if timeframe != '1m':
+            #             key = jh.key(exchange, symbol, timeframe)
+            #             logger.info(f"candle length: {timeframe} length {len(self.storage[key])}")
+            #             candles = self.get_storage(exchange, symbol, timeframe)
+            #             logger.info(f"candle {symbol} after re-generated length: {timeframe} length {len(candles)}")
 
-        # Ignoring stage Done:  candles generate from Jesse Live module. Now we back to accept CTF candles
-        self.ctf_ignore = False
+            # Ignoring stage Done:  candles generate from Jesse Live module. Now we back to accept CTF candles
+            self.ctf_ignore = False
 
         for k in self.initiated_pairs:
             self.initiated_pairs[k] = True
@@ -329,7 +331,7 @@ class CandlesState:
             # last_candle = self.get_current_candle(exchange, symbol, timeframe)
             current_1m_candle = self.get_storage(exchange, symbol, '1m')[-1]
             required_1m_to_complete_count = jh.timeframe_to_one_minutes(timeframe)
-            min_from_open_time = int((current_1m_candle[0]//60000) % 1440)
+            min_from_open_time = int(current_1m_candle[0]//60000) % 1440
             # generate_from_count = int((candle[0] - last_candle[0]) / 60_000)
 
             real_generate_from_count = min_from_open_time % required_1m_to_complete_count
@@ -340,6 +342,7 @@ class CandlesState:
             # print(f"generate_bigger_timeframes: min_from_open_time {min_from_open_time} Real candle: {real_generate_from_count}")
 
             short_candles = self.get_candles(exchange, symbol, '1m')[-1 - generate_from_count:]
+
             if generate_from_count < 0:
                 current_1m = self.get_current_candle(exchange, symbol, '1m')
                 last_candle = self.get_current_candle(exchange, symbol, timeframe)
@@ -395,7 +398,8 @@ class CandlesState:
         # logger.info(f"on batch_add_candle. Ignore ctf candles.")
 
         # Ignore Warmup candles generate from Jesse Live module
-        self.ctf_ignore = True
+        if jh.is_live():
+            self.ctf_ignore = True
 
 
     def forming_estimation(self, exchange: str, symbol: str, timeframe: str) -> tuple:
@@ -405,7 +409,7 @@ class CandlesState:
         current_1m_count = len(self.get_storage(exchange, symbol, '1m'))
 
         # CTF, dif reset at 00:00 for CTF
-        if jh.is_live:
+        if self.is_live:
             # in live mode, candle not away start at 00:00, so we have to calculate midnight diff
             if required_1m_to_complete_count < 1440:
                 # get current 1m candle
@@ -420,12 +424,12 @@ class CandlesState:
             # if dif != real_generate_from_count:
             #     self.storage[short_key] = self.storage[short_key][(real_generate_from_count - dif + required_1m_to_complete_count) % required_1m_to_complete_count:]
             
-            # print(f"forming_estimation: min_from_open_time {min_from_open_time} Jesse dif {dif} Real dif: {real_generate_from_count}")
+            print(f"forming_estimation: min_from_open_time {min_from_open_time} Jesse dif {dif} Real dif: {real_generate_from_count}")
             dif = real_generate_from_count
         else:
             # in backtest mode, candle away start at 00:00, so we dont have to calculate midnight diff
             if required_1m_to_complete_count < 1440:
-                current_1m_count = current_1m_count % 1440
+               current_1m_count = current_1m_count % 1440
             dif = current_1m_count % required_1m_to_complete_count
 
         return dif, long_key, short_key
@@ -450,8 +454,11 @@ class CandlesState:
         if dif == 0 and long_count == 0:
             return np.zeros((0, 6))
         
+        
+        # print(f"Get Candles: CTF Long {long_key} Short {short_key} Diff {dif} Long count {long_count} Short count {short_count}")
+        # (long_count > 0 ) and
         # complete candle
-        if dif == 0 or self.storage[long_key][:long_count][-1][0] == self.storage[short_key][short_count - dif - 1][0]:
+        if dif == 0 or (self.storage[long_key][:long_count][-1][0] == self.storage[short_key][short_count - dif - 1][0]):
             if fullonly and dif != 0:
                 # return full candles only, ignore last incomplete candle
                 return self.storage[long_key][:long_count-1]
@@ -466,8 +473,7 @@ class CandlesState:
                 return self.storage[long_key][:long_count]
             else:
                 # logger.info(f"Get Candles with forming: CTF Long {long_key} Short {short_key} Diff {dif} Long count {long_count} Short count {short_count}")
-                required_1m = jh.timeframe_to_one_minutes(timeframe)
-                logger.info(f"********* dif {dif} - {short_count - dif}-{short_count}")
+                # logger.info(f"********* dif {dif} - {short_count - dif}-{short_count}")
                 return np.concatenate(
                     (
                         self.storage[long_key][:long_count],

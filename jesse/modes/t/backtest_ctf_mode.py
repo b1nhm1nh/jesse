@@ -279,8 +279,7 @@ def simulator(
                 short_candle = _get_fixed_jumped_candle(previous_short_candle, short_candle)
             exchange = candles[j]['exchange']
             symbol = candles[j]['symbol']
-            # logger.info(f"New candle {i}")
-            # print_candle(short_candle, False, symbol) 
+
             store.candles.add_candle(short_candle, exchange, symbol, '1m', with_execution=False,
                                      with_generation=False)
 
