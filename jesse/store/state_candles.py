@@ -297,7 +297,7 @@ class CandlesState:
             # if dif != real_generate_from_count:
             #     self.storage[short_key] = self.storage[short_key][(real_generate_from_count - dif + required_1m_to_complete_count) % required_1m_to_complete_count:]
             
-            print(f"forming_estimation: min_from_open_time {min_from_open_time} Jesse dif {dif} Real dif: {real_generate_from_count}")
+            # print(f"forming_estimation: min_from_open_time {min_from_open_time} Jesse dif {dif} Real dif: {real_generate_from_count}")
             dif = real_generate_from_count
         else:
             # in backtest mode, candle away start at 00:00, so we dont have to calculate midnight diff
