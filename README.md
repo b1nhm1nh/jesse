@@ -1,4 +1,5 @@
-# Jesse
+# Jesse Extended Timeframe
+
 [![PyPI](https://img.shields.io/pypi/v/jesse)](https://pypi.org/project/jesse)
 [![Downloads](https://pepy.tech/badge/jesse)](https://pepy.tech/project/jesse)
 [![Docker Pulls](https://img.shields.io/docker/pulls/salehmir/jesse)](https://hub.docker.com/r/salehmir/jesse)
@@ -14,8 +15,8 @@
 ---
 Jesse is an advanced crypto trading framework which aims to simplify researching and defining trading strategies.
 ---
-CTF Branch: Custom Time Frame
-- run in backtest mode now
+Jesse Extended Timeframe
+- run in all mode now
 - work with timeframe that 1440 % tf == 0 
 
 ## Why Jesse?
