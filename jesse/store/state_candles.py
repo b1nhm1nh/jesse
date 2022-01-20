@@ -282,7 +282,7 @@ class CandlesState:
         current_1m_count = len(self.get_storage(exchange, symbol, '1m'))
 
         # CTF, dif reset at 00:00 for CTF
-        if self.is_live:
+        if jh.is_live():
             # in live mode, candle not away start at 00:00, so we have to calculate midnight diff
             if required_1m_to_complete_count < 1440:
                 # get current 1m candle
