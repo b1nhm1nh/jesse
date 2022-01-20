@@ -10,6 +10,7 @@ from pprint import pprint
 import arrow
 import click
 import numpy as np
+import jesse.helpers as jh
 
 CACHED_CONFIG = dict()
 
@@ -387,42 +388,10 @@ def key(exchange: str, symbol: str, timeframe: str = None):
 
 def max_timeframe(timeframes_list: list) -> str:
     from jesse.enums import timeframes
-
-    if timeframes.WEEK_1 in timeframes_list:
-        return timeframes.WEEK_1
-    if timeframes.DAY_3 in timeframes_list:
-        return timeframes.DAY_3
-    if timeframes.DAY_1 in timeframes_list:
-        return timeframes.DAY_1
-    if timeframes.HOUR_12 in timeframes_list:
-        return timeframes.HOUR_12
-    if timeframes.HOUR_8 in timeframes_list:
-        return timeframes.HOUR_8
-    if timeframes.HOUR_6 in timeframes_list:
-        return timeframes.HOUR_6
-    if timeframes.HOUR_4 in timeframes_list:
-        return timeframes.HOUR_4
-    if timeframes.HOUR_3 in timeframes_list:
-        return timeframes.HOUR_3
-    if timeframes.HOUR_2 in timeframes_list:
-        return timeframes.HOUR_2
-    if timeframes.HOUR_1 in timeframes_list:
-        return timeframes.HOUR_1
-    if timeframes.MINUTE_54 in timeframes_list:
-        return timeframes.MINUTE_54
-    if timeframes.MINUTE_45 in timeframes_list:
-        return timeframes.MINUTE_45
-    if timeframes.MINUTE_30 in timeframes_list:
-        return timeframes.MINUTE_30
-    if timeframes.MINUTE_15 in timeframes_list:
-        return timeframes.MINUTE_15
-    if timeframes.MINUTE_5 in timeframes_list:
-        return timeframes.MINUTE_5
-    if timeframes.MINUTE_3 in timeframes_list:
-        return timeframes.MINUTE_3
-
-    return timeframes.MINUTE_1
-
+    max_timeframe = 1
+    for timeframe in timeframes_list:
+        max_timeframe = max(max_timeframe, jh.timeframe_to_one_minutes(timeframe))
+    return f"{max_timeframe}m"
 
 def normalize(x: float, x_min: float, x_max: float) -> float:
     """

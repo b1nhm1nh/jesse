@@ -30,14 +30,8 @@ def load_required_candles(exchange: str, symbol: str, start_date_str: str, finis
     if finish_date > arrow.utcnow().int_timestamp * 1000:
         raise ValueError('Can\'t backtest the future!')
 
-    # CTF Hack
-    # include CTF timeframes in backtest - optimize mode
-    # all_timeframes = list(config['app']['considering_timeframes']) + list(config['app']['ctf_timeframes'])
-    max_timeframe  = 1
-    for timeframe in config['app']['all_timeframes']:
-        max_timeframe = max(max_timeframe, jh.timeframe_to_one_minutes(timeframe))
-    logger.info(f" warmup candles {jh.get_config('env.data.warmup_candles_num', 210)}")
-    short_candles_count = jh.get_config('env.data.warmup_candles_num', 210) * (max_timeframe)
+    max_timeframe = jh.max_timeframe(config['app']['all_timeframes'])
+    short_candles_count = jh.get_config('env.data.warmup_candles_num', 210) * jh.timeframe_to_one_minutes(max_timeframe)
     pre_finish_date = start_date - 60_000
     pre_start_date = pre_finish_date - short_candles_count * 60_000
     # make sure starting from the beginning of the day instead
