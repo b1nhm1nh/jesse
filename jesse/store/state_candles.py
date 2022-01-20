@@ -287,7 +287,7 @@ class CandlesState:
             if required_1m_to_complete_count < 1440:
                 # get current 1m candle
                 current_1m_candle = self.get_storage(exchange, symbol, '1m')[-1]
-                min_from_open_time = int (current_1m_candle[0]//60000) % 1440
+                min_from_open_time = int (current_1m_candle[0]//60000 + 1) % 1440
             else:
                 min_from_open_time = current_1m_count
    
