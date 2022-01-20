@@ -281,7 +281,30 @@ class CandlesState:
         required_1m_to_complete_count = jh.timeframe_to_one_minutes(timeframe)
         current_1m_count = len(self.get_storage(exchange, symbol, '1m'))
 
-        dif = current_1m_count % required_1m_to_complete_count
+        # CTF, dif reset at 00:00 for CTF
+        if self.is_live:
+            # in live mode, candle not away start at 00:00, so we have to calculate midnight diff
+            if required_1m_to_complete_count < 1440:
+                # get current 1m candle
+                current_1m_candle = self.get_storage(exchange, symbol, '1m')[-1]
+                min_from_open_time = int (current_1m_candle[0]//60000) % 1440
+            else:
+                min_from_open_time = current_1m_count
+   
+            real_generate_from_count = min_from_open_time % required_1m_to_complete_count
+            dif = current_1m_count % required_1m_to_complete_count
+            # 
+            # if dif != real_generate_from_count:
+            #     self.storage[short_key] = self.storage[short_key][(real_generate_from_count - dif + required_1m_to_complete_count) % required_1m_to_complete_count:]
+            
+            print(f"forming_estimation: min_from_open_time {min_from_open_time} Jesse dif {dif} Real dif: {real_generate_from_count}")
+            dif = real_generate_from_count
+        else:
+            # in backtest mode, candle away start at 00:00, so we dont have to calculate midnight diff
+            if required_1m_to_complete_count < 1440:
+               current_1m_count = current_1m_count % 1440
+            dif = current_1m_count % required_1m_to_complete_count
+
         return dif, long_key, short_key
 
     # # # # # # # # #
