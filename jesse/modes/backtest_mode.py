@@ -30,8 +30,20 @@ from jesse.services.redis import sync_publish, process_status
 from timeloop import Timeloop
 from datetime import timedelta
 from jesse.services.progressbar import Progressbar
+import pickle
+import redis
 
-from jesse.ctf import on_generate_candles_for_bigger_timeframe_with_skip
+def redis_load(key):
+    r = redis.Redis(host=jh.get_config('env.cluster.host','localhost'), port=jh.get_config('env.cluster.port',6379), db=jh.get_config('env.cluster.cache_db',0))
+    value = r.get(key)
+    if value:
+        return pickle.loads(value)
+    else:
+        return None
+
+def redis_save(key, value):
+    r = redis.Redis(host=jh.get_config('env.cluster.host'), port=jh.get_config('env.cluster.port'), db=jh.get_config('env.cluster.cache_db'))
+    r.set(key, pickle.dumps(value))
 
 def run(
         debug_mode,
@@ -185,7 +197,7 @@ def load_candles(start_date_str: str, finish_date_str: str) -> Dict[str, Dict[st
         key = jh.key(exchange, symbol)
 
         cache_key = f"{start_date_str}-{finish_date_str}-{key}"
-        cached_value = cache.get_value(cache_key)
+        cached_value = redis_load(cache_key)
         # if cache exists use cache_value
         # not cached, get and cache for later calls in the next 5 minutes
         # fetch from database
@@ -208,7 +220,8 @@ def load_candles(start_date_str: str, finish_date_str: str) -> Dict[str, Dict[st
                 f'There are missing candles between {start_date_str} => {finish_date_str}')
 
         # cache it for near future calls
-        cache.set_value(cache_key, tuple(candles_tuple), expire_seconds=60 * 60 * 24 * 7)
+        redis_save(cache_key, tuple(candles_tuple))
+        #cache.set_value(cache_key, tuple(candles_tuple), expire_seconds=60 * 60 * 24 * 7)
 
         candles[key] = {
             'exchange': exchange,
@@ -364,7 +377,6 @@ def simulator(
                 else:
                     # generate as normal
                     if (i > 0) and (i + 0) % count == 0:
-                        # FIXME: Bug: First candle is wrong, comment out 
                         if i > count:
                             _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
                         generated_candle = generate_candle_from_one_minutes(
@@ -378,26 +390,7 @@ def simulator(
                         store.candles.add_candle(generated_candle,exchange,symbol,timeframe,
                             with_execution=False, with_generation=False, with_skip = False
                         )
-                """
---------------------------
-                # CTF Hack
-                if (i % 1440) % count == 0:
-                    if i % 1440 == 0 and 1440 % count != 0:
-                        count = 1440 - (1440 // count) * count
-                    _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])  
-                    # print(f"{i} - {count}")
-                    generated_candle = generate_candle_from_one_minutes(
-                            timeframe,
-                            candles[j]['candles'][i - count:i],
-                            accept_forming_candles=True)
-                    # _get_fixed_jumped_candle(store.candles.get_current_candle(exchange, symbol, timeframe), generated_candle)
-                        
-                    store.candles.add_candle(generated_candle, exchange, symbol, timeframe, with_execution=False,
-                    		with_generation=False)
 
-                    # print(f"Generating normal candle k = {k} - i = {i} ts ={generated_candle[0]}")
-                # End CTF Hack
-                """
         # update progressbar
         if not run_silently and i % 60 == 0:
             progressbar.update()
@@ -480,7 +473,7 @@ def _get_fixed_jumped_candle(previous_candle: np.ndarray, candle: np.ndarray) ->
     :param previous_candle: np.ndarray
     :param candle: np.ndarray
     """
-    # return candle
+
 
     if candle[1] != previous_candle[2]:
         candle[1] = previous_candle[2]

@@ -288,8 +288,8 @@ def simulator(
 
         # add candles
         for j in candles:
-            # if i-skip != 0:
-            #     _get_fixed_jumped_candle(candles[j]['candles'][i - skip - 1], candles[j]['candles'][i - skip])  
+            if i > skip:
+                _get_fixed_jumped_candle(candles[j]['candles'][i - skip - 1], candles[j]['candles'][i - skip])  
             short_candles = candles[j]['candles'][i - skip: i]
 
             exchange = candles[j]['exchange']
@@ -331,7 +331,8 @@ def simulator(
                         # reset the counter, last candle of day
                         count = round(1440 - (1440 // count) * count)
                         # print(f"Case 1: {i} k = {k}")
-                        # _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
+                        if i > count:
+                            _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
                         generated_candle = generate_candle_from_one_minutes(
                             timeframe,
                             candles[j]['candles'][i - count : i],
@@ -345,7 +346,8 @@ def simulator(
                         logger.info("New candle")
                         print_candle(generated_candle, False, symbol) 
                     elif k % count == 0:
-                        # _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
+                        if i > count:
+                            _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
                         generated_candle = generate_candle_from_one_minutes(
                             timeframe,
                             candles[j]['candles'][i - count - 0 : i],
@@ -362,8 +364,8 @@ def simulator(
                 else:
                     # generate as normal
                     if (i > 0) and (i + 0) % count == 0:
-                        # FIXME: Bug: First candle is wrong, comment out 
-                        # _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
+                        if i > count:
+                            _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
                         generated_candle = generate_candle_from_one_minutes(
                             timeframe,
                             candles[j]['candles'][i - count : i],
@@ -375,26 +377,7 @@ def simulator(
                         store.candles.add_candle(generated_candle,exchange,symbol,timeframe,
                             with_execution=False, with_generation=False, with_skip = False
                         )
-                """
---------------------------
-                # CTF Hack
-                if (i % 1440) % count == 0:
-                    if i % 1440 == 0 and 1440 % count != 0:
-                        count = 1440 - (1440 // count) * count
-                    _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])  
-                    # print(f"{i} - {count}")
-                    generated_candle = generate_candle_from_one_minutes(
-                            timeframe,
-                            candles[j]['candles'][i - count:i],
-                            accept_forming_candles=True)
-                    # _get_fixed_jumped_candle(store.candles.get_current_candle(exchange, symbol, timeframe), generated_candle)
-                        
-                    store.candles.add_candle(generated_candle, exchange, symbol, timeframe, with_execution=False,
-                    		with_generation=False)
 
-                    # print(f"Generating normal candle k = {k} - i = {i} ts ={generated_candle[0]}")
-                # End CTF Hack
-                """
         # update progressbar
         if not run_silently and i % 60 == 0:
             progressbar.update()
@@ -477,7 +460,7 @@ def _get_fixed_jumped_candle(previous_candle: np.ndarray, candle: np.ndarray) ->
     :param previous_candle: np.ndarray
     :param candle: np.ndarray
     """
-    # return candle
+
 
     if candle[1] != previous_candle[2]:
         candle[1] = previous_candle[2]
