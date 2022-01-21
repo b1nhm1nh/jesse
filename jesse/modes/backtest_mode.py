@@ -288,8 +288,8 @@ def simulator(
 
         # add candles
         for j in candles:
-            # if i-skip != 0:
-            #     _get_fixed_jumped_candle(candles[j]['candles'][i - skip - 1], candles[j]['candles'][i - skip])  
+            if i > skip:
+                _get_fixed_jumped_candle(candles[j]['candles'][i - skip - 1], candles[j]['candles'][i - skip])  
             short_candles = candles[j]['candles'][i - skip: i]
 
             exchange = candles[j]['exchange']
@@ -331,7 +331,8 @@ def simulator(
                         # reset the counter, last candle of day
                         count = round(1440 - (1440 // count) * count)
                         # print(f"Case 1: {i} k = {k}")
-                        # _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
+                        if i > count:
+                            _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
                         generated_candle = generate_candle_from_one_minutes(
                             timeframe,
                             candles[j]['candles'][i - count : i],
@@ -345,7 +346,8 @@ def simulator(
                         logger.info("New candle")
                         print_candle(generated_candle, False, symbol) 
                     elif k % count == 0:
-                        # _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
+                        if i > count:
+                            _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
                         generated_candle = generate_candle_from_one_minutes(
                             timeframe,
                             candles[j]['candles'][i - count - 0 : i],
@@ -363,7 +365,8 @@ def simulator(
                     # generate as normal
                     if (i > 0) and (i + 0) % count == 0:
                         # FIXME: Bug: First candle is wrong, comment out 
-                        # _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
+                        if i > count:
+                            _get_fixed_jumped_candle(candles[j]['candles'][i - count - 1], candles[j]['candles'][i - count])
                         generated_candle = generate_candle_from_one_minutes(
                             timeframe,
                             candles[j]['candles'][i - count : i],
