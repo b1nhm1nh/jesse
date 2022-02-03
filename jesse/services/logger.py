@@ -41,7 +41,7 @@ def create_disposable_logger(name):
     LOGGERS[name] = new_logger
 
 
-def info(msg: str) -> None:
+def info(msg: str, send_notification=False) -> None:
     if jh.app_mode() not in LOGGERS:
         _init_main_logger()
 
@@ -68,6 +68,9 @@ def info(msg: str) -> None:
     if jh.is_live():
         from jesse.models.utils import store_log_into_db
         store_log_into_db(log_dict, 'info')
+
+    if send_notification:
+        notify(msg)
 
 
 def error(msg: str) -> None:
@@ -118,3 +121,13 @@ def log_exchange_message(exchange, message):
         create_disposable_logger('exchange-streams')
 
     LOGGERS['exchange-streams'].info(message)
+
+
+def broadcast_error_without_logging(msg: str):
+    msg = str(msg)
+
+    sync_publish('error_log', {
+        'id': jh.generate_unique_id(),
+        'timestamp': jh.now_to_timestamp(),
+        'message': msg
+    })
