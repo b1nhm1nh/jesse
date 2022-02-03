@@ -104,6 +104,10 @@ def run(
     # run backtest simulation
     simulator(candles, run_silently=jh.should_execute_silently())
 
+    # hyperparameters (if any)
+    if not jh.should_execute_silently():
+        sync_publish('hyperparameters', stats.hyperparameters(router.routes))
+
     if not jh.should_execute_silently():
         if store.completed_trades.count > 0:
             sync_publish('metrics', report.portfolio_metrics())
@@ -227,12 +231,20 @@ def simulator(
     first_candles_set = candles[key]['candles']
     length = len(first_candles_set)
     # to preset the array size for performance
-    store.app.starting_time = first_candles_set[0][0]
+    try:
+        store.app.starting_time = first_candles_set[0][0]
+    except IndexError:
+        raise IndexError('Check your "warm_up_candles" config value')
     store.app.time = first_candles_set[0][0]
 
     # initiate strategies
     for r in router.routes:
-        StrategyClass = jh.get_strategy_class(r.strategy_name)
+        # if the r.strategy is str read it from file
+        if isinstance(r.strategy_name, str):
+            StrategyClass = jh.get_strategy_class(r.strategy_name)
+        # else it is a class object so just use it
+        else:
+            StrategyClass = r.strategy_name
 
         try:
             r.strategy = StrategyClass()
@@ -274,7 +286,7 @@ def simulator(
         min_timeframe =  np.gcd.reduce(consider_timeframes)   
     # min_timeframe = _initialized_strategies(hyperparameters)
 
-    logger.info(f"Min_tf {min_timeframe}")
+    # logger.info(f"Min_tf {min_timeframe}")
     # add initial balance
     save_daily_portfolio_balance()
 
@@ -460,11 +472,11 @@ def _get_fixed_jumped_candle(previous_candle: np.ndarray, candle: np.ndarray) ->
     :param previous_candle: np.ndarray
     :param candle: np.ndarray
     """
-
-
-    if candle[1] != previous_candle[2]:
+    if previous_candle[2] < candle[1]:
         candle[1] = previous_candle[2]
         candle[4] = min(previous_candle[2], candle[4])
+    elif previous_candle[2] > candle[1]:
+        candle[1] = previous_candle[2]
         candle[3] = max(previous_candle[2], candle[3])
 
     return candle

@@ -38,9 +38,9 @@ def install_routes() -> None:
         )
 
         # CTF Live mode hack
-        # if count != 1:
-        #     raise InvalidRoutes(
-        #         'each exchange-symbol pair can be traded only once. \nMore info: https://docs.jesse.trade/docs/routes.html#trading-multiple-routes')
+        if count != 1:
+            raise InvalidRoutes(
+                'each exchange-symbol pair can be traded only once. \nMore info: https://docs.jesse.trade/docs/routes.html#trading-multiple-routes')
 
     # check to make sure if trading more than one route, they all have the same quote
     # currency because otherwise we cannot calculate the correct performance metrics

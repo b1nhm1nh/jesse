@@ -62,7 +62,7 @@ def get_candles(exchange: str, symbol: str, timeframe: str, start_date: str, fin
     generated_candles = []
     for i in range(len(candles)):
         num = jh.timeframe_to_one_minutes(timeframe)
-
+		# FIXME add CTF Candle
         if (i + 1) % num == 0:
             generated_candles.append(
                 generate_candle_from_one_minutes(

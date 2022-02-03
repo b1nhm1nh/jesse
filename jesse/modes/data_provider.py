@@ -40,6 +40,7 @@ def get_candles(exchange: str, symbol: str, timeframe: str):
     if timeframe != '1m':
         generated_candles = []
         for i in range(len(candles)):
+			# FIXME: add CTF Candles
             if (i + 1) % one_min_count == 0:
                 bigger_candle = generate_candle_from_one_minutes(
                     timeframe,

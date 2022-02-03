@@ -297,13 +297,13 @@ def test_max_timeframe():
     assert jh.max_timeframe(['3m', '5m']) == '5m'
     assert jh.max_timeframe(['15m', '5m']) == '15m'
     assert jh.max_timeframe(['30m', '15m']) == '30m'
-    assert jh.max_timeframe(['30m', '1h']) == '1h'
-    assert jh.max_timeframe(['1h', '2h']) == '2h'
-    assert jh.max_timeframe(['2h', '3h']) == '3h'
-    assert jh.max_timeframe(['4h', '3h']) == '4h'
-    assert jh.max_timeframe(['6h', '4h']) == '6h'
-    assert jh.max_timeframe(['8h', '4h']) == '8h'
-    assert jh.max_timeframe(['6h', '1D']) == '1D'
+    assert jh.max_timeframe(['30m', '1h']) == '60m'
+    assert jh.max_timeframe(['1h', '2h']) == '120m'
+    assert jh.max_timeframe(['2h', '3h']) == '180m'
+    assert jh.max_timeframe(['4h', '3h']) == '240m'
+    assert jh.max_timeframe(['6h', '4h']) == '360m'
+    assert jh.max_timeframe(['8h', '4h']) == '480m'
+    assert jh.max_timeframe(['6h', '1D']) == '1440m'
 
 
 def test_normalize():

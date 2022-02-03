@@ -299,7 +299,7 @@ def simulator(
         min_timeframe =  np.gcd.reduce(consider_timeframes)   
     # min_timeframe = _initialized_strategies(hyperparameters)
 
-    logger.info(f"Min_tf {min_timeframe}")
+    # logger.info(f"Min_tf {min_timeframe}")
     # add initial balance
     save_daily_portfolio_balance()
 
@@ -485,11 +485,11 @@ def _get_fixed_jumped_candle(previous_candle: np.ndarray, candle: np.ndarray) ->
     :param previous_candle: np.ndarray
     :param candle: np.ndarray
     """
-
-
-    if candle[1] != previous_candle[2]:
+    if previous_candle[2] < candle[1]:
         candle[1] = previous_candle[2]
         candle[4] = min(previous_candle[2], candle[4])
+    elif previous_candle[2] > candle[1]:
+        candle[1] = previous_candle[2]
         candle[3] = max(previous_candle[2], candle[3])
 
     return candle

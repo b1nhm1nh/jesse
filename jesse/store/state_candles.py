@@ -79,7 +79,7 @@ class CandlesState:
                 for timeframe in config['app']['all_timeframes']:
                     # if timeframe != '1m':
                     key = jh.key(exchange, symbol, timeframe)
-                    logger.info(f"Info: {timeframe} candle length {len(self.storage[key])}")
+                    # logger.info(f"Info: {timeframe} candle length {len(self.storage[key])}")
 
             # Debug: print all candles
             # for c in config['app']['considering_candles']:        
@@ -99,7 +99,6 @@ class CandlesState:
         for k in self.initiated_pairs:
             self.initiated_pairs[k] = True
         self.are_all_initiated = True
-
 
     def get_storage(self, exchange: str, symbol: str, timeframe: str) -> DynamicNumpyArray:
         key = jh.key(exchange, symbol, timeframe)
@@ -390,17 +389,15 @@ class CandlesState:
                          with_generation: bool = True) -> None:
         for c in candles:
             self.add_candle(c, exchange, symbol, timeframe, with_execution=False, with_generation=with_generation, with_skip=False)
-        logger.info(f"on batch_add_candle")
         # for timeframe in config['app']['ctf_timeframes']:
         if jh.is_live() and timeframe == '1m':
-            logger.info("Generating CTF candles")
+            # logger.info("Generating CTF candles")
             self.generate_warmup_ctf_candle(exchange, symbol)
         # logger.info(f"on batch_add_candle. Ignore ctf candles.")
 
         # Ignore Warmup candles generate from Jesse Live module
         if jh.is_live():
             self.ctf_ignore = True
-
 
     def forming_estimation(self, exchange: str, symbol: str, timeframe: str) -> tuple:
         long_key = jh.key(exchange, symbol, timeframe)
@@ -453,12 +450,9 @@ class CandlesState:
 
         if dif == 0 and long_count == 0:
             return np.zeros((0, 6))
-        
-        
-        # print(f"Get Candles: CTF Long {long_key} Short {short_key} Diff {dif} Long count {long_count} Short count {short_count}")
-        # (long_count > 0 ) and
+
         # complete candle
-        if dif == 0 or (self.storage[long_key][:long_count][-1][0] == self.storage[short_key][short_count - dif - 1][0]):
+        if dif == 0 or (self.storage[long_key][:long_count][-1][0] == self.storage[short_key][short_count - dif][0]):
             if fullonly and dif != 0:
                 # return full candles only, ignore last incomplete candle
                 return self.storage[long_key][:long_count-1]

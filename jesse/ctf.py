@@ -12,9 +12,9 @@ Hook on init storage in states_candles.py
 Add ctf timeframes
 """
 def on_init_storage():
-    logger.info("BM: Initializing storage..")
-    logger.info("---considering_candles:" + str(config['app']['considering_candles']))
-    logger.info("---considering_timeframes:" + str(config['app']['considering_timeframes']))
+    # logger.info("BM: Initializing storage..")
+    # logger.info("---considering_candles:" + str(config['app']['considering_candles']))
+    # logger.info("---considering_timeframes:" + str(config['app']['considering_timeframes']))
     enable_ctf = True
     config['app']['ctf_timeframes'] = []
     if enable_ctf:
@@ -30,8 +30,8 @@ def on_init_storage():
                     
             # config['app']['considering_timeframes'] = tuple(['1m'])
 
-    logger.info("---considering_timeframes:" + str(config['app']['considering_timeframes']))
-    logger.info("---ctf_timeframes:" + str(config['app']['ctf_timeframes']))
+    # logger.info("---considering_timeframes:" + str(config['app']['considering_timeframes']))
+    # logger.info("---ctf_timeframes:" + str(config['app']['ctf_timeframes']))
 
 """
 Hook on require_candles.py 
