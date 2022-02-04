@@ -225,19 +225,32 @@ class CandlesState:
             if timeframe == '1m':
                 continue
 
-            last_candle = self.get_current_candle(exchange, symbol, timeframe)
-            generate_from_count = int((candle[0] - last_candle[0]) / 60_000)
-            number_of_candles = len(self.get_candles(exchange, symbol, '1m'))
+            # last_candle = self.get_current_candle(exchange, symbol, timeframe)
+            current_1m_candle = self.get_storage(exchange, symbol, '1m')[-1]
+            required_1m_to_complete_count = jh.timeframe_to_one_minutes(timeframe)
+            min_from_open_time = int(current_1m_candle[0]//60000 + 1) % 1440
+            # generate_from_count = int((candle[0] - last_candle[0]) / 60_000)
+
+            real_generate_from_count = min_from_open_time % required_1m_to_complete_count
+
+            
+            generate_from_count = real_generate_from_count
+
+            print(f"generate_bigger_timeframes: min_from_open_time {min_from_open_time} Real candle: {real_generate_from_count}")
+
             short_candles = self.get_candles(exchange, symbol, '1m')[-1 - generate_from_count:]
 
             if generate_from_count < 0:
                 current_1m = self.get_current_candle(exchange, symbol, '1m')
+                last_candle = self.get_current_candle(exchange, symbol, timeframe)
+                number_of_candles = len(self.get_candles(exchange, symbol, '1m'))
                 raise ValueError(
                     f'generate_from_count cannot be negative! '
                     f'generate_from_count:{generate_from_count}, candle[0]:{candle[0]}, '
                     f'last_candle[0]:{last_candle[0]}, current_1m:{current_1m[0]}, number_of_candles:{number_of_candles}')
 
             if len(short_candles) == 0:
+                last_candle = self.get_current_candle(exchange, symbol, timeframe)
                 raise ValueError(
                     f'No candles were passed. More info:'
                     f'\nexchange:{exchange}, symbol:{symbol}, timeframe:{timeframe}, generate_from_count:{generate_from_count}'
@@ -310,7 +323,7 @@ class CandlesState:
     # # # # # # # # #
     # # # # # getters
     # # # # # # # # #
-    def get_candles(self, exchange: str, symbol: str, timeframe: str) -> np.ndarray:
+    def get_candles(self, exchange: str, symbol: str, timeframe: str, fullonly = False) -> np.ndarray:
         # no need to worry for forming candles when timeframe == 1m
         if timeframe == '1m':
             arr: DynamicNumpyArray = self.get_storage(exchange, symbol, '1m')
@@ -328,26 +341,38 @@ class CandlesState:
             return np.zeros((0, 6))
 
         # complete candle
-        if dif == 0 or self.storage[long_key][:long_count][-1][0] == self.storage[short_key][short_count - dif][0]:
-            return self.storage[long_key][:long_count]
+        if dif == 0 or (self.storage[long_key][:long_count][-1][0] == self.storage[short_key][short_count - dif][0]):
+            if fullonly and dif != 0:
+                # return full candles only, ignore last incomplete candle
+                return self.storage[long_key][:long_count-1]
+            else:
+                return self.storage[long_key][:long_count]
         # generate forming
         else:
-            return np.concatenate(
-                (
-                    self.storage[long_key][:long_count],
-                    np.array(
-                        (
-                            generate_candle_from_one_minutes(
-                                timeframe,
-                                self.storage[short_key][short_count - dif:short_count],
-                                True
-                            ),
+            # CTF Get only full candle
+            # logger.info(f"Get Candles: CTF Long {long_key} Short {short_key} Diff {dif} Long count {long_count} Short count {short_count}")
+            if fullonly:
+                # logger.info(f"Get Candles full: CTF Long {long_key} Short {short_key} Diff {dif} Long count {long_count} Short count {short_count}")
+                return self.storage[long_key][:long_count]
+            else:
+                # logger.info(f"Get Candles with forming: CTF Long {long_key} Short {short_key} Diff {dif} Long count {long_count} Short count {short_count}")
+                # logger.info(f"********* dif {dif} - {short_count - dif}-{short_count}")
+                return np.concatenate(
+                    (
+                        self.storage[long_key][:long_count],
+                        np.array(
+                            (
+                                generate_candle_from_one_minutes(
+                                    timeframe,
+                                    self.storage[short_key][short_count - dif:short_count],
+                                    True
+                                ),
+                            )
                         )
-                    )
-                ), axis=0
-            )
+                    ), axis=0
+                )
 
-    def get_current_candle(self, exchange: str, symbol: str, timeframe: str) -> np.ndarray:
+    def get_current_candle(self, exchange: str, symbol: str, timeframe: str, fullonly = False) -> np.ndarray:
         # no need to worry for forming candles when timeframe == 1m
         if timeframe == '1m':
             arr: DynamicNumpyArray = self.get_storage(exchange, symbol, '1m')
@@ -363,10 +388,17 @@ class CandlesState:
 
         # complete candle
         if dif != 0:
-            return generate_candle_from_one_minutes(
-                timeframe, self.storage[short_key][short_count - dif:short_count],
-                True
-            )
+            if fullonly:
+                # remove last forming candle
+                if long_count <= 1:
+                    return np.zeros((0, 6))
+                else:
+                    return self.storage[long_key][-2]
+            else:
+                return generate_candle_from_one_minutes(
+                    timeframe, self.storage[short_key][short_count - dif:short_count],
+                    True
+                )
         if long_count == 0:
             return np.zeros((0, 6))
         else:
