@@ -330,7 +330,7 @@ class CandlesState:
             # last_candle = self.get_current_candle(exchange, symbol, timeframe)
             current_1m_candle = self.get_storage(exchange, symbol, '1m')[-1]
             required_1m_to_complete_count = jh.timeframe_to_one_minutes(timeframe)
-            min_from_open_time = int(current_1m_candle[0]//60000) % 1440
+            min_from_open_time = int(current_1m_candle[0]//60000 + 1) % 1440
             # generate_from_count = int((candle[0] - last_candle[0]) / 60_000)
 
             real_generate_from_count = min_from_open_time % required_1m_to_complete_count
@@ -338,7 +338,7 @@ class CandlesState:
             
             generate_from_count = real_generate_from_count
 
-            # print(f"generate_bigger_timeframes: min_from_open_time {min_from_open_time} Real candle: {real_generate_from_count}")
+            print(f"generate_bigger_timeframes: min_from_open_time {min_from_open_time} Real candle: {real_generate_from_count}")
 
             short_candles = self.get_candles(exchange, symbol, '1m')[-1 - generate_from_count:]
 
@@ -411,7 +411,7 @@ class CandlesState:
             if required_1m_to_complete_count < 1440:
                 # get current 1m candle
                 current_1m_candle = self.get_storage(exchange, symbol, '1m')[-1]
-                min_from_open_time = int (current_1m_candle[0]//60000) % 1440
+                min_from_open_time = int (current_1m_candle[0]//60000 + 1) % 1440
             else:
                 min_from_open_time = current_1m_count
    
