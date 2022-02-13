@@ -142,15 +142,12 @@ def portfolio_metrics() -> dict:
 
 
 def info() -> List[List[Union[str, Any]]]:
-    return [
-        [
+    return [[
             jh.timestamp_to_time(w['time'])[11:19],
             f"{w['message'][:70]}.."
             if len(w['message']) > 70
             else w['message'],
-        ]
-        for w in store.logs.info[::-1][0:5]
-    ]
+        ] for w in store.logs.info[::-1][:5]]
 
 
 def watch_list() -> List[List[Union[str, str]]]:
@@ -166,19 +163,24 @@ def watch_list() -> List[List[Union[str, str]]]:
 
     watch_list_array = strategy.watch_list()
 
+    # loop through the watch list and convert each item into a string
+    for index, value in enumerate(watch_list_array):
+        # if value is not a tuple with two values in it, raise ValueError
+        if not isinstance(value, tuple) or len(value) != 2:
+            raise ValueError("watch_list() must return a list of tuples with 2 values in each. Example: [(key1, value1), (key2, value2)]")
+
+        watch_list_array[index] = (str(value[0]), str(value[1]))
+
     return watch_list_array if len(watch_list_array) else []
 
 
 def errors() -> List[List[Union[str, Any]]]:
-    return [
-        [
+    return [[
             jh.timestamp_to_time(w['time'])[11:19],
             f"{w['message'][:70]}.."
             if len(w['message']) > 70
             else w['message'],
-        ]
-        for w in store.logs.errors[::-1][0:5]
-    ]
+        ] for w in store.logs.errors[::-1][:5]]
 
 
 def orders():
@@ -205,4 +207,4 @@ def orders():
             'created_at': o.created_at,
             'canceled_at': o.canceled_at,
             'executed_at': o.executed_at,
-        } for o in route_orders[::-1][0:5]]
+        } for o in route_orders[::-1][:5]]

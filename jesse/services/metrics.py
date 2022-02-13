@@ -47,7 +47,7 @@ def trades(trades_list: List[CompletedTrade], daily_balance: list, final: bool =
         current_balance += store.exchanges.storage[e].assets[jh.app_currency()]
 
     if not trades_list:
-        return {'total': 0}
+        return {'total': 0, 'win_rate': 0, 'net_profit_percentage': 0}
 
     df = pd.DataFrame.from_records([t.to_dict() for t in trades_list])
 
@@ -175,10 +175,6 @@ def hyperparameters(routes_arr: list) -> list:
     if routes_arr[0].strategy.hp is None:
         return []
 
-    hp = []
-    # only for the first route
-    for key in routes_arr[0].strategy.hp:
-        hp.append([
+    return [[
             key, routes_arr[0].strategy.hp[key]
-        ])
-    return hp
+        ] for key in routes_arr[0].strategy.hp]
