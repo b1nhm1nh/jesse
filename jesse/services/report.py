@@ -26,12 +26,14 @@ def positions() -> list:
             continue
         p: Position = r.strategy.position
         arr.append({
+            'currency': jh.app_currency(),
             'type': p.type,
             'strategy_name': p.strategy.name,
             'symbol': p.symbol,
             'leverage': p.leverage,
             'opened_at': p.opened_at,
             'qty': p.qty,
+            'value': round(p.value, 2),
             'entry': p.entry_price,
             'current_price': p.current_price,
             'liq_price': p.liquidation_price,
@@ -142,12 +144,15 @@ def portfolio_metrics() -> dict:
 
 
 def info() -> List[List[Union[str, Any]]]:
-    return [[
+    return [
+        [
             jh.timestamp_to_time(w['time'])[11:19],
             f"{w['message'][:70]}.."
             if len(w['message']) > 70
             else w['message'],
-        ] for w in store.logs.info[::-1][:5]]
+        ]
+        for w in store.logs.info[::-1][0:5]
+    ]
 
 
 def watch_list() -> List[List[Union[str, str]]]:
@@ -156,6 +161,10 @@ def watch_list() -> List[List[Union[str, str]]]:
     only support the first route
     """
     strategy = router.routes[0].strategy
+
+    # return if strategy object is not initialized yet
+    if strategy is None:
+        return []
 
     # don't if the strategy hasn't been initiated yet
     if not store.candles.are_all_initiated:
@@ -175,12 +184,15 @@ def watch_list() -> List[List[Union[str, str]]]:
 
 
 def errors() -> List[List[Union[str, Any]]]:
-    return [[
+    return [
+        [
             jh.timestamp_to_time(w['time'])[11:19],
             f"{w['message'][:70]}.."
             if len(w['message']) > 70
             else w['message'],
-        ] for w in store.logs.errors[::-1][:5]]
+        ]
+        for w in store.logs.errors[::-1][0:5]
+    ]
 
 
 def orders():
@@ -207,4 +219,4 @@ def orders():
             'created_at': o.created_at,
             'canceled_at': o.canceled_at,
             'executed_at': o.executed_at,
-        } for o in route_orders[::-1][:5]]
+        } for o in route_orders[::-1][0:5]]
