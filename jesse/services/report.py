@@ -26,12 +26,14 @@ def positions() -> list:
             continue
         p: Position = r.strategy.position
         arr.append({
+            'currency': jh.app_currency(),
             'type': p.type,
             'strategy_name': p.strategy.name,
             'symbol': p.symbol,
             'leverage': p.leverage,
             'opened_at': p.opened_at,
             'qty': p.qty,
+            'value': round(p.value, 2),
             'entry': p.entry_price,
             'current_price': p.current_price,
             'liq_price': p.liquidation_price,
@@ -160,11 +162,23 @@ def watch_list() -> List[List[Union[str, str]]]:
     """
     strategy = router.routes[0].strategy
 
+    # return if strategy object is not initialized yet
+    if strategy is None:
+        return []
+
     # don't if the strategy hasn't been initiated yet
     if not store.candles.are_all_initiated:
         return []
 
     watch_list_array = strategy.watch_list()
+
+    # loop through the watch list and convert each item into a string
+    for index, value in enumerate(watch_list_array):
+        # if value is not a tuple with two values in it, raise ValueError
+        if not isinstance(value, tuple) or len(value) != 2:
+            raise ValueError("watch_list() must return a list of tuples with 2 values in each. Example: [(key1, value1), (key2, value2)]")
+
+        watch_list_array[index] = (str(value[0]), str(value[1]))
 
     return watch_list_array if len(watch_list_array) else []
 
