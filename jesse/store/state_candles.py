@@ -225,32 +225,33 @@ class CandlesState:
             if timeframe == '1m':
                 continue
 
-            # last_candle = self.get_current_candle(exchange, symbol, timeframe)
+            last_candle = self.get_current_candle(exchange, symbol, timeframe)
+            generate_from_count = int((candle[0] - last_candle[0]) / 60_000)
+            number_of_candles = len(self.get_candles(exchange, symbol, '1m'))
             current_1m_candle = self.get_storage(exchange, symbol, '1m')[-1]
             required_1m_to_complete_count = jh.timeframe_to_one_minutes(timeframe)
-            min_from_open_time = int(current_1m_candle[0]//60000 + 1) % 1440
-            # generate_from_count = int((candle[0] - last_candle[0]) / 60_000)
+            min_from_open_time = int(candle[0]//60000) % 1440
 
             real_generate_from_count = min_from_open_time % required_1m_to_complete_count
 
             
             generate_from_count = real_generate_from_count
 
-            print(f"generate_bigger_timeframes: min_from_open_time {min_from_open_time} Real candle: {real_generate_from_count}")
+            # print(f"generate_bigger_timeframes: min_from_open_time {min_from_open_time}, Jesse candle: {generate_from_count} Real candle: {real_generate_from_count}")
 
             short_candles = self.get_candles(exchange, symbol, '1m')[-1 - generate_from_count:]
 
             if generate_from_count < 0:
                 current_1m = self.get_current_candle(exchange, symbol, '1m')
-                last_candle = self.get_current_candle(exchange, symbol, timeframe)
-                number_of_candles = len(self.get_candles(exchange, symbol, '1m'))
+                #last_candle = self.get_current_candle(exchange, symbol, timeframe)
+                #number_of_candles = len(self.get_candles(exchange, symbol, '1m'))
                 raise ValueError(
                     f'generate_from_count cannot be negative! '
                     f'generate_from_count:{generate_from_count}, candle[0]:{candle[0]}, '
                     f'last_candle[0]:{last_candle[0]}, current_1m:{current_1m[0]}, number_of_candles:{number_of_candles}')
 
             if len(short_candles) == 0:
-                last_candle = self.get_current_candle(exchange, symbol, timeframe)
+                #last_candle = self.get_current_candle(exchange, symbol, timeframe)
                 raise ValueError(
                     f'No candles were passed. More info:'
                     f'\nexchange:{exchange}, symbol:{symbol}, timeframe:{timeframe}, generate_from_count:{generate_from_count}'
