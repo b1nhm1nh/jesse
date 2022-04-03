@@ -27,10 +27,12 @@ def _telegram(msg: str) -> None:
 
     if not token or not config['env']['notifications']['enabled']:
         return
-
-    requests.get(
-        f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&parse_mode=Markdown&text={msg}'
-    )
+    try:
+        requests.get(
+            f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&parse_mode=Markdown&text={msg}'
+        )
+    except Exception:
+        return
 
 
 def _telegram_errors_bot(msg: str) -> None:
@@ -39,10 +41,12 @@ def _telegram_errors_bot(msg: str) -> None:
 
     if not token or not config['env']['notifications']['enabled']:
         return
-
-    requests.get(
-        f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&parse_mode=Markdown&text={msg}'
-    )
+    try:
+        requests.get(
+            f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&parse_mode=Markdown&text={msg}'
+        )
+    except Exception:
+        return
 
 
 def _discord(msg: str) -> None:
@@ -51,7 +55,10 @@ def _discord(msg: str) -> None:
     if not webhook_address or not config['env']['notifications']['enabled']:
         return
 
-    requests.post(webhook_address, {'content': msg})
+    try:
+        requests.post(webhook_address, {'content': msg})
+    except Exception:
+        return
 
 
 def _discord_errors(msg: str) -> None:
@@ -60,4 +67,7 @@ def _discord_errors(msg: str) -> None:
     if not webhook_address or not config['env']['notifications']['enabled']:
         return
 
-    requests.post(webhook_address, {'content': msg})
+    try:
+        requests.post(webhook_address, {'content': msg})
+    except Exception:
+        return
