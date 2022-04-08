@@ -62,7 +62,7 @@ def _discord(msg: str) -> None:
 
     try:
         response = requests.post(webhook_address, {'content': msg})
-        if response.status_code not in [200, 429]:
+        if response.status_code not in [200, 204, 429]:
             logger.error(f'Discord ERROR [{response.status_code}]: {response.text}', local_only = True)
     except requests.exceptions.ConnectionError:
         logger.error('Discord ERROR: ConnectionError', local_only = True)
@@ -76,7 +76,7 @@ def _discord_errors(msg: str) -> None:
 
     try:
         response = requests.post(webhook_address, {'content': msg})
-        if response.status_code not in [200, 429]:
+        if response.status_code not in [200, 204, 429]:
             logger.error(f'Discord ERROR [{response.status_code}]: {response.text}', local_only = True)
     except requests.exceptions.ConnectionError:
         logger.error('Discord ERROR: ConnectionError', local_only = True)
