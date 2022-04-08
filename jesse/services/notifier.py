@@ -34,7 +34,7 @@ def _telegram(msg: str) -> None:
         if response.status_code not in [200, 429]:
             logger.error(f'Telegram ERROR [{response.status_code}]: {response.text}', local_only = True)
     except requests.exceptions.ConnectionError:
-        logger.error('Telegram ERROR: ConnectionError')
+        logger.error('Telegram ERROR: ConnectionError', local_only = True)
 
 
 def _telegram_errors_bot(msg: str) -> None:
@@ -51,7 +51,7 @@ def _telegram_errors_bot(msg: str) -> None:
         if response.status_code not in [200, 429]:
             logger.error(f'Telegram ERROR [{response.status_code}]: {response.text}', local_only = True)
     except requests.exceptions.ConnectionError:
-        logger.error('Telegram ERROR: ConnectionError')
+        logger.error('Telegram ERROR: ConnectionError', local_only = True)
 
 
 def _discord(msg: str) -> None:
@@ -65,7 +65,7 @@ def _discord(msg: str) -> None:
         if response.status_code not in [200, 429]:
             logger.error(f'Discord ERROR [{response.status_code}]: {response.text}', local_only = True)
     except requests.exceptions.ConnectionError:
-        logger.error('Discord ERROR: ConnectionError')
+        logger.error('Discord ERROR: ConnectionError', local_only = True)
 
 
 def _discord_errors(msg: str) -> None:
@@ -79,4 +79,4 @@ def _discord_errors(msg: str) -> None:
         if response.status_code not in [200, 429]:
             logger.error(f'Discord ERROR [{response.status_code}]: {response.text}', local_only = True)
     except requests.exceptions.ConnectionError:
-        logger.error('Discord ERROR: ConnectionError')
+        logger.error('Discord ERROR: ConnectionError', local_only = True)
