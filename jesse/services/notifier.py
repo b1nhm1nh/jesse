@@ -32,9 +32,9 @@ def _telegram(msg: str) -> None:
             f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&parse_mode=Markdown&text={msg}'
         )
         if response.status_code not in [200, 429]:
-            logger.error(f'Telegram ERROR [{response.status_code}]: {response.text}', local_only = True)
+            logger.error(f'Telegram ERROR [{response.status_code}]: {response.text}', send_notification=False)
     except requests.exceptions.ConnectionError:
-        logger.error('Telegram ERROR: ConnectionError', local_only = True)
+        logger.error('Telegram ERROR: ConnectionError', send_notification=False)
 
 
 def _telegram_errors_bot(msg: str) -> None:
@@ -49,9 +49,9 @@ def _telegram_errors_bot(msg: str) -> None:
             f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&parse_mode=Markdown&text={msg}'
         )
         if response.status_code not in [200, 429]:
-            logger.error(f'Telegram ERROR [{response.status_code}]: {response.text}', local_only = True)
+            logger.error(f'Telegram ERROR [{response.status_code}]: {response.text}', send_notification=False)
     except requests.exceptions.ConnectionError:
-        logger.error('Telegram ERROR: ConnectionError', local_only = True)
+        logger.error('Telegram ERROR: ConnectionError', send_notification=False)
 
 
 def _discord(msg: str) -> None:
@@ -62,10 +62,10 @@ def _discord(msg: str) -> None:
 
     try:
         response = requests.post(webhook_address, {'content': msg})
-        if response.status_code not in [200, 204, 429]:
-            logger.error(f'Discord ERROR [{response.status_code}]: {response.text}', local_only = True)
+        if response.status_code not in [200, 429]:
+            logger.error(f'Discord ERROR [{response.status_code}]: {response.text}', send_notification=False)
     except requests.exceptions.ConnectionError:
-        logger.error('Discord ERROR: ConnectionError', local_only = True)
+        logger.error('Discord ERROR: ConnectionError', send_notification=False)
 
 
 def _discord_errors(msg: str) -> None:
@@ -76,7 +76,7 @@ def _discord_errors(msg: str) -> None:
 
     try:
         response = requests.post(webhook_address, {'content': msg})
-        if response.status_code not in [200, 204, 429]:
-            logger.error(f'Discord ERROR [{response.status_code}]: {response.text}', local_only = True)
+        if response.status_code not in [200, 429]:
+            logger.error(f'Discord ERROR [{response.status_code}]: {response.text}', send_notification=False)
     except requests.exceptions.ConnectionError:
-        logger.error('Discord ERROR: ConnectionError', local_only = True)
+        logger.error('Discord ERROR: ConnectionError', send_notification=False)
