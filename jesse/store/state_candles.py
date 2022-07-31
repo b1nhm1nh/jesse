@@ -114,7 +114,9 @@ class CandlesState:
 
         if candle[0] == 0:
             if jh.is_debugging():
-                logger.error("DEBUGGING-VALUE: please report to Saleh: candle[0] is zero")
+                logger.error(
+                    f"DEBUGGING-VALUE: please report to Saleh: candle[0] is zero. \nFull candle: {candle}\n"
+                )
             return
 
         arr: DynamicNumpyArray = self.get_storage(exchange, symbol, timeframe)
@@ -254,6 +256,10 @@ class CandlesState:
             # print(f"generate_bigger_timeframes: min_from_open_time {min_from_open_time}, Jesse candle: {generate_from_count} Real candle: {real_generate_from_count}")
 
             short_candles = self.get_candles(exchange, symbol, '1m')[-1 - generate_from_count:]
+
+            if generate_from_count == -1:
+                # it's receiving an slightly older candle than the last one. Ignore it
+                return
 
             if generate_from_count < 0:
                 current_1m = self.get_current_candle(exchange, symbol, '1m')

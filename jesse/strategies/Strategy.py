@@ -8,8 +8,8 @@ import jesse.helpers as jh
 import jesse.services.logger as logger
 import jesse.services.selectors as selectors
 from jesse import exceptions
-from jesse.enums import sides, order_submitted_via
-from jesse.models import CompletedTrade, Order, Route, FuturesExchange, SpotExchange, Position
+from jesse.enums import sides, order_submitted_via, order_types
+from jesse.models import ClosedTrade, Order, Route, FuturesExchange, SpotExchange, Position
 from jesse.services import metrics
 from jesse.services.broker import Broker
 from jesse.store import store
@@ -49,7 +49,7 @@ class Strategy(ABC):
         self.take_profit = None
         self._take_profit = None
 
-        self.trade: CompletedTrade = None
+        self.trade: ClosedTrade = None
         self.trades_count = 0
 
         self._is_executing = False
@@ -122,53 +122,56 @@ class Strategy(ABC):
         events. Note that it assumes that the position has already
         been affected by the executed order.
         """
-
         # in live-mode, sometimes order-update effects and new execution has overlaps, so:
         self._is_handling_updated_order = True
 
         # this is the last executed order, and had its effect on
         # the position. We need to know what its effect was:
-        if order.is_partially_filled:
-            before_qty = self.position.qty - order.filled_qty
-        else:
-            before_qty = self.position.qty - order.qty
+        before_qty = self.position.previous_qty
         after_qty = self.position.qty
 
-        # call the relevant strategy event handler:
         # if opening position
-        if before_qty == 0 and after_qty != 0:
+        if abs(before_qty) <= abs(self.position._min_qty) < abs(after_qty):
+            effect = 'opening_position'
+        # if closing position
+        elif abs(before_qty) > abs(self.position._min_qty) >= abs(after_qty):
+            effect = 'closing_position'
+        # if increasing position size
+        elif abs(after_qty) > abs(before_qty):
+            effect = 'increased_position'
+        # if reducing position size
+        else: # abs(after_qty) < abs(before_qty):
+            effect = 'reduced_position'
+
+        # call the relevant strategy event handler:
+        if effect == 'opening_position':
             txt = f"OPENED {self.position.type} position for {self.symbol}: qty: {after_qty}, entry_price: {self.position.entry_price}"
             if jh.is_debuggable('position_opened'):
                 logger.info(txt)
             if jh.is_live() and jh.get_config('env.notifications.events.updated_position'):
                 notifier.notify(txt)
             self._on_open_position(order)
-        # if closing position
-        elif before_qty != 0 and after_qty == 0:
+        elif effect == 'closing_position':
             txt = f"CLOSED Position for {self.symbol}"
             if jh.is_debuggable('position_closed'):
                 logger.info(txt)
             if jh.is_live() and jh.get_config('env.notifications.events.updated_position'):
                 notifier.notify(txt)
             self._on_close_position(order)
-        # if increasing position size
-        elif abs(after_qty) > abs(before_qty):
+        elif effect == 'increased_position':
             txt = f"INCREASED Position size to {after_qty}"
             if jh.is_debuggable('position_increased'):
                 logger.info(txt)
             if jh.is_live() and jh.get_config('env.notifications.events.updated_position'):
                 notifier.notify(txt)
             self._on_increased_position(order)
-        # if reducing position size
-        elif abs(after_qty) < abs(before_qty):
+        else: # if effect == 'reduced_position':
             txt = f"REDUCED Position size to {after_qty}"
             if jh.is_debuggable('position_reduced'):
                 logger.info(txt)
             if jh.is_live() and jh.get_config('env.notifications.events.updated_position'):
                 notifier.notify(txt)
             self._on_reduced_position(order)
-        else:
-            pass
 
         self._is_handling_updated_order = False
 
@@ -194,12 +197,24 @@ class Strategy(ABC):
         self._prepare_buy()
 
         if self.take_profit is not None:
+            if self.exchange_type == 'spot':
+                raise exceptions.InvalidStrategy(
+                    "Setting self.take_profit in the go_long() method is not supported for spot trading (it's only supported in futures trading). "
+                    "Try setting it in self.on_open_position() instead."
+                )
+
             # validate
             self._validate_take_profit()
 
             self._prepare_take_profit()
 
         if self.stop_loss is not None:
+            if self.exchange_type == 'spot':
+                raise exceptions.InvalidStrategy(
+                    "Setting self.stop_loss in the go_long() method is not supported for spot trading (it's only supported in futures trading). "
+                    "Try setting it in self.on_open_position() instead."
+                )
+
             # validate
             self._validate_stop_loss()
 
@@ -411,7 +426,7 @@ class Strategy(ABC):
         return False
 
     @abstractmethod
-    def should_cancel(self) -> bool:
+    def should_cancel_entry(self) -> bool:
         pass
 
     def before(self) -> None:
@@ -482,7 +497,7 @@ class Strategy(ABC):
 
                     # cancel orders
                     for o in self.exit_orders:
-                        if o.is_take_profit and o.is_active or o.is_queued:
+                        if o.is_take_profit and (o.is_active or o.is_queued):
                             self.broker.cancel_order(o.id)
                     for o in self._take_profit:
                         submitted_order: Order = self.broker.reduce_position_at(o[0], o[1])
@@ -500,7 +515,7 @@ class Strategy(ABC):
 
                     # cancel orders
                     for o in self.exit_orders:
-                        if o.is_stop_loss and o.is_active or o.is_queued:
+                        if o.is_stop_loss and (o.is_active or o.is_queued):
                             self.broker.cancel_order(o.id)
                     # remove canceled orders to optimize the loop
                     for o in self._stop_loss:
@@ -547,12 +562,8 @@ class Strategy(ABC):
         if jh.is_live() and jh.is_debugging():
             logger.info(f'Executing  {self.name}-{self.exchange}-{self.symbol}-{self.timeframe}')
 
-        # for caution to make sure testing on livetrade won't bleed your account
-        if jh.is_test_driving() and store.completed_trades.count >= 2:
-            logger.info('Maximum allowed trades in test-drive mode is reached')
-            return
-
-        if len(self.entry_orders) and self.is_close and self.should_cancel():
+        # should cancel entry?
+        if len(self.entry_orders) and self.is_close and self.should_cancel_entry():
             self._execute_cancel()
 
             # make sure order cancellation response is received via WS
@@ -573,24 +584,60 @@ class Strategy(ABC):
                         'The exchange did not respond as expected for order cancellation'
                     )
 
+        # update position
         if self.position.is_open:
             self._update_position()
 
-        if jh.is_backtesting() or jh.is_unit_testing():
-            store.orders.execute_pending_market_orders()
+            # sleep for 1 second if a MARKET order has been submitted but not executed yet (live trading only)
+            if jh.is_livetrading():
+                waiting_counter = 0
+                waiting_seconds = 1
+                while self._have_any_pending_market_exit_orders():
+                    if jh.is_debugging():
+                        logger.info(f'Waiting {waiting_seconds} second for pending market exit orders to be handled...')
+                    waiting_counter += 1
+                    sleep(1)
+                    if waiting_counter > 10:
+                        raise exceptions.ExchangeNotResponding(
+                            'The exchange did not respond as expected for order execution'
+                        )
 
+        self._simulate_market_order_execution()
+
+        # should_long and should_short
         if self.position.is_close and self.entry_orders == []:
+            self._reset()
+
             should_short = self.should_short()
+            # validate that should_short is not True if the exchange_type is spot
+            if self.exchange_type == 'spot' and should_short is True:
+                raise exceptions.InvalidStrategy(
+                    'should_short cannot be True if the exchange type is "spot".'
+                )
+
             should_long = self.should_long()
-            # validation
+
+            # should_short and should_long cannot be True at the same time
             if should_short and should_long:
                 raise exceptions.ConflictingRules(
                     'should_short and should_long should not be true at the same time.'
                 )
+
             if should_long:
                 self._execute_long()
             elif should_short:
                 self._execute_short()
+
+    def _have_any_pending_market_exit_orders(self) -> bool:
+        return any(o.is_active and o.type == order_types.MARKET for o in self.exit_orders)
+
+    @staticmethod
+    def _simulate_market_order_execution() -> None:
+        """
+        Simulate market order execution in backtest mode
+        """
+        if jh.is_backtesting() or jh.is_unit_testing() or jh.is_paper_trading():
+            store.orders.execute_pending_market_orders()
 
     def _on_open_position(self, order: Order) -> None:
         self.increased_count = 1
@@ -772,6 +819,9 @@ class Strategy(ABC):
             logger.info(
                 f"Closed open {self.exchange}-{self.symbol} position at {self.position.current_price} with PNL: {round(self.position.pnl, 4)}({round(self.position.pnl_percentage, 2)}%) because we reached the end of the backtest session."
             )
+            # first cancel all active orders so the balances would go back to the original state
+            if self.exchange_type == 'spot':
+                self.broker.cancel_all_orders()
             # fake a closing (market) order so that the calculations would be correct
             self.broker.reduce_position_at(self.position.qty, self.position.current_price)
             return
@@ -895,18 +945,17 @@ class Strategy(ABC):
 
     @property
     def balance(self) -> float:
-        """alias for self.capital"""
-        return self.capital
+        """the current capital in the trading exchange"""
+        return self.position.exchange.wallet_balance
 
     @property
     def capital(self) -> float:
-        """the current capital in the trading exchange"""
-        return self.position.exchange.wallet_balance(self.symbol)
+        raise NotImplementedError('The alias "self.capital" has been removed. Please use "self.balance" instead.')
 
     @property
     def available_margin(self) -> float:
         """Current available margin considering leverage"""
-        return self.position.exchange.available_margin(self.symbol)
+        return self.position.exchange.available_margin
 
     @property
     def fee_rate(self) -> float:
@@ -961,7 +1010,12 @@ class Strategy(ABC):
         # create numpy array from list
         arr = np.array(var, dtype=float)
 
-        if jh.is_live() and round_for_live_mode:
+        # validate that the price (second column) is not less or equal to zero
+        if arr[:, 1].min() <= 0:
+            raise exceptions.InvalidStrategy(f'Order price must be greater than zero: \n{var}')
+
+        # if jh.is_live() and round_for_live_mode:
+        if jh.is_livetrading() and round_for_live_mode:
             # in livetrade mode, we'll need them rounded
             current_exchange = selectors.get_exchange(self.exchange)
 
@@ -993,6 +1047,15 @@ class Strategy(ABC):
         else:
             return None
 
+        # if type of arr is not np.ndarray, then it's not ready yet. Return None
+        if type(arr) is not np.ndarray:
+            arr = None
+
+        if arr is None and self.position.is_open:
+            return self.position.entry_price
+        elif arr is None:
+            return None
+
         return (np.abs(arr[:, 0] * arr[:, 1])).sum() / np.abs(arr[:, 0]).sum()
 
     @property
@@ -1010,7 +1073,6 @@ class Strategy(ABC):
         # this property inside a filter.
         if self.entry_orders == [] and self.sell is not None:
             return True
-
         return self.entry_orders != [] and self.entry_orders[0].side == 'sell'
 
     def liquidate(self) -> None:
@@ -1060,20 +1122,13 @@ class Strategy(ABC):
         return self.position.liquidation_price
 
     @staticmethod
-    def log(msg: str, log_type: str = 'info') -> None:
+    def log(msg: str, log_type: str = 'info', send_notification: bool = False) -> None:
         msg = str(msg)
 
         if log_type == 'info':
-            logger.info(msg)
-
-            if jh.is_live():
-                notifier.notify(msg)
+            logger.info(msg, send_notification=jh.is_live() and send_notification)
         elif log_type == 'error':
-            logger.error(msg)
-
-            if jh.is_live():
-                notifier.notify(msg)
-                notifier.notify_urgently(msg)
+            logger.error(msg, send_notification=jh.is_live() and send_notification)
         else:
             raise ValueError(f'log_type should be either "info" or "error". You passed {log_type}')
 
@@ -1087,12 +1142,25 @@ class Strategy(ABC):
     @property
     def portfolio_value(self) -> float:
         total_position_values = 0
-        for key, p in self.all_positions.items():
-            total_position_values += p.pnl
-        return (total_position_values + self.capital) * self.leverage
+
+        # in spot mode, self.balance does not include open order's value, so:
+        if self.is_spot_trading:
+            for o in self.entry_orders:
+                if o.is_active:
+                    total_position_values += o.value
+
+            for key, p in self.all_positions.items():
+                total_position_values += p.value
+
+        # in futures mode, it's simpler:
+        elif self.is_futures_trading:
+            for key, p in self.all_positions.items():
+                total_position_values += p.pnl
+
+        return (total_position_values + self.balance) * self.leverage
 
     @property
-    def trades(self) -> List[CompletedTrade]:
+    def trades(self) -> List[ClosedTrade]:
         """
         Returns all the completed trades for this strategy.
         """
@@ -1118,3 +1186,19 @@ class Strategy(ABC):
         Returns all the exit orders for this position.
         """
         return store.orders.get_exit_orders(self.exchange, self.symbol)
+
+    @property
+    def exchange_type(self):
+        return selectors.get_exchange(self.exchange).type
+
+    @property
+    def is_spot_trading(self) -> bool:
+        return self.exchange_type == 'spot'
+
+    @property
+    def is_futures_trading(self) -> bool:
+        return self.exchange_type == 'futures'
+
+    @property
+    def daily_balances(self):
+        return store.app.daily_balance

@@ -34,7 +34,7 @@ def positions() -> list:
             'opened_at': p.opened_at,
             'qty': p.qty,
             'value': round(p.value, 2),
-            'entry': p.entry_price,
+            'entry': jh.round_or_none(p.entry_price, 2) if p.is_open else None,
             'current_price': p.current_price,
             'liquidation_price': p.liquidation_price,
             'pnl': p.pnl,
@@ -91,8 +91,8 @@ def livetrade():
     starting_balance = 0
     current_balance = 0
     for e in store.exchanges.storage:
-        starting_balance = round(store.exchanges.storage[e].started_balance(), 2)
-        current_balance = round(store.exchanges.storage[e].wallet_balance(), 2)
+        starting_balance = round(store.exchanges.storage[e].started_balance, 2)
+        current_balance = round(store.exchanges.storage[e].wallet_balance, 2)
         # there's only one exchange, so we can break
         break
 

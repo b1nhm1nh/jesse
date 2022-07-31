@@ -24,18 +24,18 @@ def backtest(
     {
         'starting_balance': 5_000,
         'fee': 0.001,
+        'type': 'futures',
         'futures_leverage': 3,
         'futures_leverage_mode': 'cross',
         'exchange': 'Binance',
-        'settlement_currency': 'USDT',
         'warm_up_candles': 100
     }
 
     Example `route`:
-    [{'exchange': 'Binance', 'strategy': 'A1', 'symbol': 'BTC-USDT', 'timeframe': '1m'}]
+    [{'exchange': 'Bybit USDT Perpetual', 'strategy': 'A1', 'symbol': 'BTC-USDT', 'timeframe': '1m'}]
 
     Example `extra_route`:
-    [{'exchange': 'Binance', 'symbol': 'BTC-USD', 'timeframe': '3m'}]
+    [{'exchange': 'Bybit USDT Perpetual', 'symbol': 'BTC-USDT', 'timeframe': '3m'}]
 
     Example `candles`:
     {
@@ -101,6 +101,18 @@ def _isolated_backtest(
 
     # initiate candle store
     store.candles.init_storage(5000)
+
+    # assert that the passed candles are 1m candles
+    for key, value in candles.items():
+        candle_set = value['candles']
+        if candle_set[1][0] - candle_set[0][0] != 60_000:
+            raise ValueError(
+                f'Candles passed to the research.backtest() must be 1m candles. '
+                f'\nIf you wish to trade other timeframes, notice that you need to pass it through '
+                f'the timeframe option in your routes. '
+                f'\nThe difference between your candles are {candle_set[1][0] - candle_set[0][0]} milliseconds which more than '
+                f'the accepted 60000 milliseconds.'
+            )
 
     # divide candles into warm_up_candles and trading_candles and then inject warm_up_candles
     max_timeframe = jh.max_timeframe(jesse_config['app']['considering_timeframes'])
@@ -171,16 +183,20 @@ def _format_config(config):
     Jesse's required format for user_config is different from what this function accepts (so it
     would be easier to write for the researcher). Hence we need to reformat the config_dict:
     """
+    exchange_config = {
+        'balance': config['starting_balance'],
+        'fee': config['fee'],
+        'type': config['type'],
+        'name': config['exchange'],
+    }
+    # futures exchange has different config, so:
+    if exchange_config['type'] == 'futures':
+        exchange_config['futures_leverage'] = config['futures_leverage']
+        exchange_config['futures_leverage_mode'] = config['futures_leverage_mode']
+
     return {
         'exchanges': {
-            config['exchange']: {
-                'balance': config['starting_balance'],
-                'fee': config['fee'],
-                'futures_leverage': config['futures_leverage'],
-                'futures_leverage_mode': config['futures_leverage_mode'],
-                'name': config['exchange'],
-                'settlement_currency': config['settlement_currency']
-            }
+            config['exchange']: exchange_config
         },
         'logging': {
             'balance_update': True,
