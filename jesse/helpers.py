@@ -388,10 +388,36 @@ def key(exchange: str, symbol: str, timeframe: str = None):
 
 def max_timeframe(timeframes_list: list) -> str:
     from jesse.enums import timeframes
-    max_timeframe = 1
-    for timeframe in timeframes_list:
-        max_timeframe = max(max_timeframe, jh.timeframe_to_one_minutes(timeframe))
-    return f"{max_timeframe}m"
+
+    if timeframes.DAY_1 in timeframes_list:
+        return timeframes.DAY_1
+    if timeframes.HOUR_12 in timeframes_list:
+        return timeframes.HOUR_12
+    if timeframes.HOUR_8 in timeframes_list:
+        return timeframes.HOUR_8
+    if timeframes.HOUR_6 in timeframes_list:
+        return timeframes.HOUR_6
+    if timeframes.HOUR_4 in timeframes_list:
+        return timeframes.HOUR_4
+    if timeframes.HOUR_3 in timeframes_list:
+        return timeframes.HOUR_3
+    if timeframes.HOUR_2 in timeframes_list:
+        return timeframes.HOUR_2
+    if timeframes.HOUR_1 in timeframes_list:
+        return timeframes.HOUR_1
+    if timeframes.MINUTE_45 in timeframes_list:
+        return timeframes.MINUTE_45
+    if timeframes.MINUTE_30 in timeframes_list:
+        return timeframes.MINUTE_30
+    if timeframes.MINUTE_15 in timeframes_list:
+        return timeframes.MINUTE_15
+    if timeframes.MINUTE_5 in timeframes_list:
+        return timeframes.MINUTE_5
+    if timeframes.MINUTE_3 in timeframes_list:
+        return timeframes.MINUTE_3
+
+    return timeframes.MINUTE_1
+
 
 def normalize(x: float, x_min: float, x_max: float) -> float:
     """
@@ -748,6 +774,7 @@ def timeframe_to_one_minutes(timeframe: str) -> int:
         timeframes.DAY_1: 60 * 24,
         timeframes.DAY_3: 60 * 24 * 3,
         timeframes.WEEK_1: 60 * 24 * 7,
+        timeframes.MONTH_1: 60 * 24 * 30,
     }
 
     try:
@@ -975,3 +1002,13 @@ def get_class_name(cls):
         return cls
     # else, return the class name
     return cls.__name__
+
+
+def next_candle_timestamp(candle: np.ndarray, timeframe: str) -> int:
+    return candle[0] + timeframe_to_one_minutes(timeframe) * 60_000
+
+
+def get_candle_start_timestamp_based_on_timeframe(timeframe: str, num_candles_to_fetch: int) -> int:
+    one_min_count = timeframe_to_one_minutes(timeframe)
+    finish_date = now(force_fresh=True)
+    return finish_date - (num_candles_to_fetch * one_min_count * 60_000)
