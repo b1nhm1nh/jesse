@@ -80,3 +80,13 @@ def get_route(exchange: str, symbol: str) -> Optional[Any]:
 def get_all_trading_routes() -> List[Any]:
     from jesse.routes import router
     return router.routes
+
+
+def get_all_extra_routes() -> List[Any]:
+    from jesse.routes import router
+    return router.formatted_extra_routes
+
+
+def get_all_routes() -> List[Any]:
+    from jesse.routes import router
+    return router.all_formatted_routes

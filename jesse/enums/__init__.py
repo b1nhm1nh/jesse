@@ -32,6 +32,9 @@ class timeframes:
     HOUR_8 = '8h'
     HOUR_12 = '12h'
     DAY_1 = '1D'
+    DAY_3 = '3D'
+    WEEK_1 = '1W'
+    MONTH_1 = '1M'
 
 
 class colors:
@@ -74,6 +77,8 @@ class migration_actions:
     MODIFY_TYPE = 'modify_type'
     ALLOW_NULL = 'allow_null'
     DENY_NULL = 'deny_null'
+    ADD_INDEX = 'add_index'
+    DROP_INDEX = 'drop_index'
 
 
 class order_submitted_via:
